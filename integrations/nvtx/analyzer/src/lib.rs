@@ -1,0 +1,44 @@
+// SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+// SPDX-License-Identifier: Apache-2.0
+
+//! Hand-written, framework-free reconstruction core for captured NVTX events.
+//!
+//! Turns a stream of verbatim [`NvtxEvent`](nvtx_events::NvtxEvent)s — carried in
+//! Quent's [`Event`](quent_events::Event) envelope — into an in-memory
+//! [`NvtxModel`] of plain [`NvtxSpan`]s.
+//!
+//! The core is deliberately **off** the shared analysis framework: it depends on
+//! neither the shared analyzer nor the shared model crate and uses none of the
+//! `model!` / `fsm!` / `entity!` macro DSL, defining its own span type instead.
+//! That independence is what makes it **tolerant by construction** — foreign
+//! telemetry is untrusted and frequently malformed, so:
+//!
+//! - out-of-order events are replayed in timestamp order,
+//! - duplicate timestamps reconstruct deterministically, preserving arrival order,
+//! - zero-duration spans are legal, and out-of-order pairs are clamped rather than rejected,
+//! - a range that is never closed is closed at trace end and flagged synthetic,
+//! - an orphan close with no matching open is logged and skipped.
+//!
+//! No anomaly in the event stream aborts reconstruction or panics.
+//!
+//! Names work the same way. NVTX captures every label as a raw integer handle,
+//! so reconstruction runs in two passes: the first learns every registration in
+//! the stream, the second resolves against it. Registration order therefore does
+//! not matter, and a handle that is never registered gets a stable placeholder
+//! surfacing its raw value rather than an error. See
+//! [`NvtxModelBuilder::build`].
+
+mod model;
+mod ranges;
+mod resource;
+mod span;
+mod stats;
+mod tables;
+
+pub use model::{NvtxModel, NvtxModelBuilder};
+pub use span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId, SpanKind};
+pub use stats::{RangeStats, StatsKey};
+
+// Re-exported so consumers can read span attributes without depending on the
+// vocabulary crate directly. Carried verbatim, exactly as captured.
+pub use nvtx_events::{NvtxColor, NvtxPayload};
