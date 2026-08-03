@@ -1,0 +1,17 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+
+[package]
+name = "nvtx-ui"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+# The reconstructed model this crate projects for display. `nvtx-analyzer` is
+# framework-free by design, so the TypeScript-facing types live here rather than
+# on its span type.
+#
+# `serde`, `ts-rs`, and `quent-time`'s `ts` feature land with the first bound
+# type, following `quent-query-engine-ui`.
+nvtx-analyzer = { path = "../analyzer" }
