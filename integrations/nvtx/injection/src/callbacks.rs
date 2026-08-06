@@ -236,8 +236,14 @@ pub(crate) extern "C" fn on_range_start_a(message: *const c_char) -> nvtxRangeId
 }
 
 /// CORE `RangeEnd` subscriber (default domain).
+///
+/// Ends carrying [`init::UNDECODABLE_RANGE_ID`] close a wide-char start that was
+/// never captured, so they are dropped rather than emitted as orphans.
 pub(crate) extern "C" fn on_range_end(range_id: nvtxRangeId_t) {
     let _ = std::panic::catch_unwind(|| {
+        if init::range_end_is_suppressed(range_id) {
+            return;
+        }
         init::dispatch(convert::range_end(0, range_id));
     });
 }
@@ -271,10 +277,18 @@ pub(crate) extern "C" fn on_range_push_a(message: *const c_char) -> c_int {
 }
 
 /// CORE `RangePop` subscriber (default domain). Returns the level ended.
+///
+/// This entry point is shared by every push surface, so a pop closing a push
+/// this crate did not capture is dropped — see
+/// [`init::pop_is_suppressed`]. The nesting level is still reported faithfully
+/// to the application either way.
 pub(crate) extern "C" fn on_range_pop() -> c_int {
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
         level = init::range_pop_level(0);
+        if init::pop_is_suppressed(level) {
+            return;
+        }
         let thread_id = init::current_thread_id();
         init::dispatch(convert::range_pop(0, thread_id));
     }));
@@ -300,12 +314,16 @@ pub(crate) extern "C" fn on_name_category_a(category: u32, name: *const c_char) 
 
 /// Emit a one-time, process-global diagnostic that a wide-char (`*W`) NVTX call
 /// was seen but not captured. Fires at most once to avoid spamming the hot path.
+///
+/// Shared by every `*W` stub, so the text stays neutral about what happens next:
+/// the two range surfaces drop their matching close as well, while the mark and
+/// naming surfaces have no close to drop.
 fn warn_wide_surface_once() {
     static WARNED: AtomicBool = AtomicBool::new(false);
     if !WARNED.swap(true, Ordering::Relaxed) {
         eprintln!(
-            "nvtx-injection: a wide-char (Unicode) NVTX call was seen but not captured; only the \
-             ASCII surface is decoded. This warning fires once."
+            "nvtx-injection: a wide-char (Unicode) NVTX call was seen but not captured; only \
+             the ASCII surface is decoded. This warning fires once."
         );
     }
 }
@@ -315,21 +333,30 @@ pub(crate) extern "C" fn on_mark_w(_message: *const c_void) {
     let _ = std::panic::catch_unwind(warn_wide_surface_once);
 }
 
-/// CORE `RangeStartW` stub — synthesizes/RETURNS an id so a later `RangeEnd`
-/// stays valid; the wide label is dropped and warned once.
+/// CORE `RangeStartW` stub — the range is not captured, so it returns the
+/// reserved [`init::UNDECODABLE_RANGE_ID`] and `on_range_end` drops the matching
+/// end rather than letting it arrive orphaned.
 pub(crate) extern "C" fn on_range_start_w(_message: *const c_void) -> nvtxRangeId_t {
-    let range_id = init::next_handle();
     let _ = std::panic::catch_unwind(warn_wide_surface_once);
-    range_id
+    init::undecodable_range_id()
 }
 
-/// CORE `RangePushW` stub — preserves default-domain nesting; label dropped,
-/// warned once.
+/// CORE `RangePushW` stub — the push is not captured, but the nesting level is
+/// still taken so the application observes faithful `nvtxRangePush` return
+/// semantics.
+///
+/// The level is recorded so the shared `nvtxRangePop` drops the matching pop.
+/// Without that, the captured stream would carry more pops than pushes and a
+/// reconstruction would close the enclosing range at this range's pop.
 pub(crate) extern "C" fn on_range_push_w(_message: *const c_void) -> c_int {
     let mut level: c_int = 0;
     let _ = std::panic::catch_unwind(AssertUnwindSafe(|| {
-        warn_wide_surface_once();
+        // Take the level first, as every sibling push callback does. The warning
+        // writes to stderr, and a panic there must not leave the depth
+        // un-incremented while the app's matching pop still decrements it.
         level = init::range_push_level(0);
+        init::suppress_push_level(level);
+        warn_wide_surface_once();
     }));
     level
 }

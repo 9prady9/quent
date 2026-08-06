@@ -75,6 +75,62 @@ thread_local! {
         std::cell::RefCell::new(std::collections::HashMap::new());
 }
 
+/// The range id handed back for a wide-char `nvtxRangeStartW`.
+///
+/// One reserved value rather than a fresh handle: the range is not captured, so
+/// every undecodable start can share an id that [`crate::callbacks`] recognizes
+/// and discards when the matching `nvtxRangeEnd` arrives. `NEXT_HANDLE` counts
+/// up from `1`, so it can never collide with this.
+const UNDECODABLE_RANGE_ID: u64 = u64::MAX;
+
+/// Whether a `RangeEnd` closes an uncaptured wide-char start and should be dropped.
+///
+/// Mirrors [`pop_is_suppressed`] for the handle-based range surface so
+/// [`crate::callbacks`] does not need to know the sentinel value directly.
+pub(crate) fn range_end_is_suppressed(range_id: u64) -> bool {
+    range_id == UNDECODABLE_RANGE_ID
+}
+
+/// The sentinel id returned to the application by [`crate::callbacks::on_range_start_w`].
+pub(crate) fn undecodable_range_id() -> u64 {
+    UNDECODABLE_RANGE_ID
+}
+
+thread_local! {
+    /// Default-domain nesting levels taken by a push this crate did not capture.
+    ///
+    /// There is a single `nvtxRangePop` entry point shared by every push
+    /// surface, so a push that is dropped must have its pop dropped too.
+    /// Emitting the pop alone would leave the captured stream with more closes
+    /// than opens, and a reconstruction replaying it would close the *enclosing*
+    /// range at this range's pop — a shorter duration indistinguishable from a
+    /// correct measurement.
+    static UNDECODABLE_PUSH_LEVELS: std::cell::RefCell<Vec<c_int>> =
+        const { std::cell::RefCell::new(Vec::new()) };
+}
+
+/// Record that `level` was taken by a push that is not being captured, so the
+/// pop ending it is dropped as well.
+pub(crate) fn suppress_push_level(level: c_int) {
+    UNDECODABLE_PUSH_LEVELS.with(|levels| levels.borrow_mut().push(level));
+}
+
+/// Whether the pop ending `level` closes an uncaptured push, consuming the
+/// record if so.
+///
+/// Matching on the innermost entry rather than searching: pushes and pops are
+/// strictly LIFO per thread, and `range_push_level` / `range_pop_level` report
+/// the same level for the two halves of a pair.
+pub(crate) fn pop_is_suppressed(level: c_int) -> bool {
+    UNDECODABLE_PUSH_LEVELS.with(|levels| {
+        let mut levels = levels.borrow_mut();
+        levels.last() == Some(&level) && {
+            levels.pop();
+            true
+        }
+    })
+}
+
 /// The 0-based nesting level of a `DomainRangePushEx` on this thread for
 /// `domain`, then increment the open-range depth. Returns the level of the
 /// range being started (NVTX `nvtxDomainRangePushEx` return semantics).
@@ -559,7 +615,10 @@ unsafe fn set_callback(
 
 #[cfg(test)]
 mod tests {
-    use super::{current_thread_id, range_pop_level, range_push_level};
+    use super::{
+        current_thread_id, next_handle, pop_is_suppressed, range_end_is_suppressed,
+        range_pop_level, range_push_level, suppress_push_level, undecodable_range_id,
+    };
 
     #[test]
     fn current_thread_id_is_stable_and_nonzero() {
@@ -598,5 +657,42 @@ mod tests {
         assert_eq!(range_push_level(b), 0);
         assert_eq!(range_pop_level(a), 1);
         assert_eq!(range_pop_level(b), 0);
+    }
+
+    #[test]
+    fn suppressed_push_suppresses_only_its_own_pop() {
+        // outer (captured) encloses inner (undecodable). The shared pop entry
+        // point must drop only the inner one, or the outer range would be
+        // closed at the inner range's pop.
+        let d = 0;
+        let outer = range_push_level(d);
+        let inner = range_push_level(d);
+        suppress_push_level(inner);
+
+        assert_eq!(range_pop_level(d), inner);
+        assert!(pop_is_suppressed(inner), "the inner pop is dropped");
+
+        assert_eq!(range_pop_level(d), outer);
+        assert!(
+            !pop_is_suppressed(outer),
+            "the enclosing range's pop is still captured"
+        );
+    }
+
+    #[test]
+    fn unsuppressed_pops_are_never_dropped() {
+        // Nothing was suppressed, so no pop may be swallowed.
+        let d = 0;
+        range_push_level(d);
+        let level = range_pop_level(d);
+        assert!(!pop_is_suppressed(level));
+    }
+
+    #[test]
+    fn undecodable_range_id_cannot_collide_with_a_real_handle() {
+        // `range_end_is_suppressed` discards ends carrying the reserved id, so a
+        // real handle must never equal it. The counter climbs from 1.
+        assert!(!range_end_is_suppressed(next_handle()));
+        assert!(range_end_is_suppressed(undecodable_range_id()));
     }
 }
