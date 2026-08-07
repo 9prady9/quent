@@ -1,8 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { parseJsonWithBigInt } from '@quent/utils';
+import { parseJsonWithBigInt, stringifyJsonWithBigInt } from '@quent/utils';
 import { getApiBaseUrl } from './config';
+import { canonicalizeNvtxRequest } from './nvtxCanonical';
 import type {
   QueryBundle,
   QueryGroup,
@@ -20,6 +21,10 @@ import type {
   TimelineConfig,
   EntityListRequest,
   EntityListResponse,
+  EngineContexts,
+  NvtxCatalog,
+  NvtxViewportRequest,
+  NvtxViewportResponse,
 } from '@quent/utils';
 
 interface ApiFetchOptions {
@@ -84,6 +89,95 @@ export async function fetchQueryBundle(
 
 export async function fetchListEngines(): Promise<Engine[]> {
   return apiFetch<Engine[]>('/engines', { params: { with_metadata: true } });
+}
+
+export async function fetchEngineContexts(engineId: string): Promise<EngineContexts> {
+  return apiFetch<EngineContexts>(`/engines/${engineId}/contexts`);
+}
+
+/** Fetch stable NVTX metadata, resolving a 404 to optional absence. */
+export async function fetchNvtxCatalog(contextId: string): Promise<NvtxCatalog | null> {
+  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/catalog`);
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  return normalizeNvtxCatalog(parseJsonWithBigInt<NvtxCatalog>(await response.text()));
+}
+
+export async function fetchNvtxViewport(
+  contextId: string,
+  request: NvtxViewportRequest
+): Promise<NvtxViewportResponse> {
+  const canonical = canonicalizeNvtxRequest(request);
+  const response = await apiFetchResponse(`/nvtx/contexts/${contextId}/viewport`, {
+    fetchOptions: {
+      method: 'POST',
+      body: stringifyJsonWithBigInt(canonical),
+    },
+  });
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.status} ${response.statusText}`);
+  }
+  return normalizeNvtxViewport(parseJsonWithBigInt<NvtxViewportResponse>(await response.text()));
+}
+
+function asBigInt(value: bigint | number): bigint {
+  return typeof value === 'bigint' ? value : BigInt(value);
+}
+
+function normalizeNvtxCatalog(catalog: NvtxCatalog): NvtxCatalog {
+  return {
+    ...catalog,
+    trace_start: asBigInt(catalog.trace_start),
+    trace_end: asBigInt(catalog.trace_end),
+    domains: catalog.domains.map(domain => ({
+      ...domain,
+      domain_id: asBigInt(domain.domain_id),
+    })),
+  };
+}
+
+function normalizeNvtxViewport(viewport: NvtxViewportResponse): NvtxViewportResponse {
+  return {
+    ...viewport,
+    viewport: {
+      start: asBigInt(viewport.viewport.start),
+      end: asBigInt(viewport.viewport.end),
+    },
+    domains: viewport.domains.map(domain => ({
+      ...domain,
+      domain_id: asBigInt(domain.domain_id),
+      lanes: domain.lanes.map(lane => ({
+        ...lane,
+        ranges: lane.ranges.map(range => ({
+          ...range,
+          domain_id: asBigInt(range.domain_id),
+          observed_start: asBigInt(range.observed_start),
+          observed_end: range.observed_end === null ? null : asBigInt(range.observed_end),
+          display_start: asBigInt(range.display_start),
+          display_end: asBigInt(range.display_end),
+          observed_duration:
+            range.observed_duration === null ? null : asBigInt(range.observed_duration),
+        })),
+        marks: lane.marks.map(mark => ({
+          ...mark,
+          domain_id: asBigInt(mark.domain_id),
+          timestamp: asBigInt(mark.timestamp),
+        })),
+      })),
+    })),
+    statistics: viewport.statistics.map(statistics => ({
+      ...statistics,
+      domain_id: asBigInt(statistics.domain_id),
+      count: asBigInt(statistics.count),
+      observed_count: asBigInt(statistics.observed_count),
+      total_duration: asBigInt(statistics.total_duration),
+      avg_duration: asBigInt(statistics.avg_duration),
+      min_duration: asBigInt(statistics.min_duration),
+      max_duration: asBigInt(statistics.max_duration),
+    })),
+  };
 }
 
 export async function fetchListCoordinators(engineId: string): Promise<QueryGroup[]> {
