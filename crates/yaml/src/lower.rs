@@ -45,7 +45,12 @@ use crate::diag::Diagnostics;
 /// Recoverable errors do not stop later phases, allowing one run to report
 /// multiple problems. A returned schema is meaningful only when `sink`
 /// contains no errors. Returns `None` when no schema can be built.
-pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
+pub(crate) struct Lowered {
+    pub(crate) schema: Schema,
+    pub(crate) nvtx: bool,
+}
+
+pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Lowered> {
     // Validate model-level inputs and prepare resource name resolution.
     if model.quent != "alpha" {
         sink.error(
@@ -102,7 +107,10 @@ pub(crate) fn lower(model: &Model, sink: &mut Diagnostics) -> Option<Schema> {
         ))
         .build();
     match schema {
-        Ok(schema) => Some(schema),
+        Ok(schema) => Some(Lowered {
+            schema,
+            nvtx: model.nvtx,
+        }),
         Err(error) => {
             schema_builder_diagnostics(&error, sink);
             None
