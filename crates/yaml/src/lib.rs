@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Parses a YAML model file into a [`Schema`].
+//! Parses a YAML model file into a [`Schema`] plus model-level generation
+//! options such as [`Parsed::nvtx`].
 //!
 //! [`parse_from_file`] takes a path, [`parse_from_str`] a string; both return
 //! the schema plus any warnings, or the diagnostics explaining why it could not
@@ -28,6 +29,8 @@ pub use diag::{Diagnostic, Diagnostics, Origin};
 pub struct Parsed {
     /// The parsed schema.
     pub schema: Schema,
+    /// Whether CXX instrumentation generated for this model should capture NVTX.
+    pub nvtx: bool,
     /// Advisory problems that did not prevent parsing.
     pub warnings: Vec<Diagnostic>,
 }
@@ -63,8 +66,8 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         }
     };
 
-    let schema = match lower::lower(&model, &mut sink) {
-        Some(schema) => schema,
+    let lowered = match lower::lower(&model, &mut sink) {
+        Some(lowered) => lowered,
         None => {
             if !sink.has_errors() {
                 sink.error("", "schema could not be built", None);
@@ -81,7 +84,7 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
         RefTreeConstraint,
         FsmConstraint,
         ResourceConstraint,
-    )>(&schema);
+    )>(&lowered.schema);
     if let Err(e) = report.base_constraints {
         for entity in e.entities_without_events {
             sink.error(
@@ -135,7 +138,11 @@ pub fn parse_from_str(src: impl AsRef<str>, source: Option<&str>) -> Result<Pars
             )
         })
         .collect();
-    Ok(Parsed { schema, warnings })
+    Ok(Parsed {
+        schema: lowered.schema,
+        nvtx: lowered.nvtx,
+        warnings,
+    })
 }
 
 /// Read a model file and parse it via [`parse_from_str`], naming it by path.

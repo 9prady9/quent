@@ -28,6 +28,8 @@ pub(crate) struct Model {
     /// The format version. Only `alpha` is supported.
     pub(crate) quent: String,
     pub(crate) model: String,
+    #[serde(default = "default_nvtx")]
+    pub(crate) nvtx: bool,
     #[serde(default)]
     pub(crate) doc: Option<String>,
     #[serde(default)]
@@ -40,6 +42,10 @@ pub(crate) struct Model {
     pub(crate) entities: IndexMap<String, Entity>,
     #[serde(default)]
     pub(crate) fsms: IndexMap<String, FsmSpec>,
+}
+
+const fn default_nvtx() -> bool {
+    true
 }
 
 /// An FSM entity: annotations plus its states.
