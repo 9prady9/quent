@@ -68,6 +68,10 @@ fn cargo_toml(spec: &ViewerSpec, io_package: &str) -> String {
             git_dep(quent.clone(), q_rev, &[]),
         ),
         (
+            "nvtx-server".to_string(),
+            git_dep(quent.clone(), q_rev, &[]),
+        ),
+        (
             // All formats enabled so the analyzer can detect the artifact's format at runtime.
             io_package.to_string(),
             git_dep(quent, q_rev, &["ndjson", "msgpack", "postcard"]),
@@ -124,7 +128,8 @@ fn main_rs(spec: &ViewerSpec) -> String {
 
         use quent_query_engine_analyzer::ui::QuentViewer;
         use quent_query_engine_server::analyzer_cache::index_query_engines;
-        use quent_query_engine_server::analyzer_service_router;
+        use quent_query_engine_server::analyzer_service_router_with_routes;
+        use nvtx_server::{import_context_events, routes as nvtx_routes};
         use #analyzer_crate::Viewer;
 
         type Analyzer = <Viewer as QuentViewer>::Analyzer;
@@ -142,11 +147,14 @@ fn main_rs(spec: &ViewerSpec) -> String {
             };
             let lister_root = root.clone();
             let lister = move || index_query_engines(&lister_root);
+            let nvtx_root = root.clone();
+            let nvtx_importer = move |id: uuid::Uuid| import_context_events(&nvtx_root, id);
 
-            let router = analyzer_service_router::<Analyzer>(
+            let router = analyzer_service_router_with_routes::<Analyzer>(
                 Box::new(importer),
                 Box::new(lister),
                 None,
+                nvtx_routes(Box::new(nvtx_importer)),
             )?;
 
             let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -189,6 +197,7 @@ mod tests {
         assert_eq!(server["git"].as_str().unwrap(), "https://example.com/quent");
         assert_eq!(server["rev"].as_str().unwrap(), "quentcommit");
         assert_eq!(server["features"][0].as_str().unwrap(), "ui");
+        assert_eq!(deps["nvtx-server"]["rev"].as_str().unwrap(), "quentcommit");
         // The exporter enables all formats so the analyzer detects the artifact's format at runtime.
         let exporter_features = deps["quent-io"]["features"].as_array().unwrap();
         for format in ["ndjson", "msgpack", "postcard"] {
@@ -227,6 +236,8 @@ mod tests {
         let main = main_rs(&spec());
         assert!(main.contains("use quent_simulator_analyzer::Viewer;"));
         assert!(main.contains("import_events"));
+        assert!(main.contains("import_context_events"));
+        assert!(main.contains("analyzer_service_router_with_routes"));
         assert!(main.contains("QUENT_OPEN_ADDR")); // bind address is configurable
     }
 }

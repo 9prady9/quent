@@ -4,6 +4,7 @@
 // Utilities
 export { cn } from './cn';
 export { parseJsonWithBigInt } from './parseJsonWithBigInt';
+export { stringifyJsonWithBigInt } from './stringifyJsonWithBigInt';
 
 // Color utilities
 export {
