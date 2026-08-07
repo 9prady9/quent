@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Maximize2, Settings } from 'lucide-react';
+import type { ReactNode } from 'react';
 import {
   useHideTasks,
   useSetHideTasks,
@@ -12,7 +13,13 @@ import { Popover, PopoverTrigger, PopoverContent } from '../ui/popover';
 import { QueryToolbar } from './QueryToolbar';
 
 /** Toolbar for the timeline view: shows active operator filter, zoom reset, and settings. */
-export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }) {
+export function TimelineToolbar({
+  durationSeconds,
+  children,
+}: {
+  durationSeconds: number;
+  children?: ReactNode;
+}) {
   const hideTasks = useHideTasks();
   const setHideTasks = useSetHideTasks();
   const setZoomRange = useSetZoomRange();
@@ -36,6 +43,8 @@ export function TimelineToolbar({ durationSeconds }: { durationSeconds: number }
       </button>
 
       <div className="h-3 w-px bg-border" />
+
+      {children}
 
       <Popover>
         <PopoverTrigger asChild>
