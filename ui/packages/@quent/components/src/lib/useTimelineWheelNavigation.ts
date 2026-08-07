@@ -54,10 +54,7 @@ export function useTimelineWheelNavigation(minZoomSpanPct: number) {
           const unclampedNextSpan = zoomingIn
             ? currentSpan / WHEEL_ZOOM_FACTOR
             : currentSpan * WHEEL_ZOOM_FACTOR;
-          const nextSpan = Math.max(
-            minZoomSpanPctRef.current,
-            Math.min(100, unclampedNextSpan)
-          );
+          const nextSpan = Math.max(minZoomSpanPctRef.current, Math.min(100, unclampedNextSpan));
 
           if (zoomingIn && isAtZoomLimit()) return;
 
@@ -67,9 +64,7 @@ export function useTimelineWheelNavigation(minZoomSpanPct: number) {
             rect.width - TIMELINE_SPACING.left - TIMELINE_SPACING.right
           );
           const localX =
-            event.clientX > 0
-              ? event.clientX - rect.left - TIMELINE_SPACING.left
-              : usableWidth / 2;
+            event.clientX > 0 ? event.clientX - rect.left - TIMELINE_SPACING.left : usableWidth / 2;
           const anchorPct = Math.max(0, Math.min(1, localX / usableWidth));
           const anchorValue = currentStart + currentSpan * anchorPct;
           const unclampedStart = anchorValue - nextSpan * anchorPct;

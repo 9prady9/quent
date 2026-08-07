@@ -196,7 +196,12 @@ export function NvtxLaneChart({
           children: [
             {
               type: 'line' as const,
-              shape: { x1: x, y1: startPoint[1] - laneHeight / 2, x2: x, y2: startPoint[1] + laneHeight / 2 },
+              shape: {
+                x1: x,
+                y1: startPoint[1] - laneHeight / 2,
+                x2: x,
+                y2: startPoint[1] + laneHeight / 2,
+              },
               style: { stroke: mark.color, lineWidth: 2 },
             },
             {
@@ -283,9 +288,6 @@ export function NvtxLaneChart({
     if (width < 0.15) return { left: `calc(${left}% - 1px)`, width: 2 };
     return { left: `${left}%`, width: `${width}%` };
   };
-
-
-
 
   const showAtElement = (
     type: ActiveItem['type'],
