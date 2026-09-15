@@ -176,7 +176,7 @@ export function deriveCapacityLabel(
   if (meaningful.length === 1) {
     const cap = meaningful[0]!;
     const spec = quantitySpecs?.[cap.quantity];
-    return spec ? `${cap.name} (${spec.symbol})` : cap.name;
+    return spec?.symbol ? `${cap.name} (${spec.symbol})` : cap.name;
   }
   // Multiple capacities: use a shared unit symbol when all agree, otherwise names only.
   const symbols = new Set(meaningful.map(c => quantitySpecs?.[c.quantity]?.symbol));

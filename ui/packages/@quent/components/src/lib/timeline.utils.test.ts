@@ -20,10 +20,11 @@ import {
   setOperatorOnEntries,
   findItemById,
   computeVisibleMaxValue,
+  deriveCapacityLabel,
 } from './timeline.utils';
 import type { TimelineSeries, TimelineSeriesEntry } from '../timeline/types';
 import type { TreeTableItem } from '../resource-tree/types';
-import type { TimelineRequest, OperatorFilter } from '@quent/utils';
+import type { OperatorFilter, QuantitySpec, ResourceTypeDecl, TimelineRequest } from '@quent/utils';
 
 // ---- Helpers ---------------------------------------------------------------
 
@@ -176,6 +177,25 @@ describe('getTimelineXAxisIntervalMs', () => {
   it('treats targetSplits < 2 as 2', () => {
     // Same result as targetSplits = 2
     expect(getTimelineXAxisIntervalMs(7_000, 1)).toBe(getTimelineXAxisIntervalMs(7_000, 2));
+  });
+});
+
+describe('deriveCapacityLabel', () => {
+  it('omits the unit suffix when the quantity has no symbol', () => {
+    const resourceType: ResourceTypeDecl = {
+      name: 'queue',
+      capacities: [{ name: 'capacity_entries', kind: 'Occupancy', quantity: 'unit' }],
+      used_by: [],
+    };
+    const unitSpec: QuantitySpec = {
+      symbol: '',
+      singular: 'unit',
+      plural: 'units',
+      occupancy_prefix: 'None',
+      rate_prefix: 'None',
+    };
+
+    expect(deriveCapacityLabel(resourceType, { unit: unitSpec })).toBe('capacity_entries');
   });
 });
 
