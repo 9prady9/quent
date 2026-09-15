@@ -1,0 +1,12 @@
+[package]
+name = "quent-codegen-tutorial-build"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+cxx-build = "1"
+quent-instrumentation-build = { path = "../../../../crates/instrumentation-build" }
+quent-schema-codegen-cpp = { path = "../cpp" }
+quent-schema-codegen-python = { path = "../python" }
+quent-yaml = { path = "../../../../crates/yaml" }

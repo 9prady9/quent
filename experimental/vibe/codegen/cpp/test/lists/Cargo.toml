@@ -1,0 +1,16 @@
+[package]
+name = "quent-cpp-list-test"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[dependencies]
+cxx = "1"
+quent-dynamic-attributes = { path = "../../../../../../crates/dynamic-attributes" }
+quent-instrumentation = { path = "../../../../../../crates/instrumentation" }
+
+[build-dependencies]
+cxx-build = "1"
+quent-instrumentation-build = { path = "../../../../../../crates/instrumentation-build" }
+quent-schema-codegen-cpp = { path = "../.." }
+quent-yaml = { path = "../../../../../../crates/yaml" }

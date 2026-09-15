@@ -1,0 +1,16 @@
+[build-system]
+requires = ["maturin>=1.10,<2"]
+build-backend = "maturin"
+
+[project]
+name = "quent-tutorial-resource-capacity"
+version = "0.0.0"
+requires-python = ">=3.11"
+
+[tool.maturin]
+manifest-path = "bridge/Cargo.toml"
+module-name = "quent_tutorial_resource_capacity"
+include = [
+  { path = "quent_tutorial_resource_capacity/__init__.pyi", from = "out-dir", to = "" },
+  { path = "quent_tutorial_resource_capacity/py.typed", from = "out-dir", to = "" },
+]
