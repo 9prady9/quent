@@ -56,6 +56,10 @@ struct Args {
     #[arg(long, default_value_t = 1)]
     num_gpus: usize,
 
+    /// Generate a new engine ID instead of reusing the stable simulator ID
+    #[arg(long)]
+    dynamic_engine_id: bool,
+
     #[command(flatten)]
     exporter: ExporterArgs,
 }
@@ -1312,9 +1316,9 @@ struct Engine {
 }
 
 impl Engine {
-    fn new() -> Self {
+    fn new(id: Uuid) -> Self {
         Self {
-            id: ENGINE_ID,
+            id,
             workers: Default::default(),
             network: Uuid::now_v7(),
             network_links: Default::default(),
@@ -1444,7 +1448,11 @@ impl Default for SimulationConfig {
 
 /// Emits a simulator run through `context`.
 pub fn simulate(context: SimulatorContext, config: SimulationConfig) {
-    let mut engine = Engine::new();
+    simulate_with_engine_id(context, config, ENGINE_ID);
+}
+
+fn simulate_with_engine_id(context: SimulatorContext, config: SimulationConfig, engine_id: Uuid) {
+    let mut engine = Engine::new(engine_id);
     engine.spawn(
         &context,
         config.num_workers,
@@ -1539,13 +1547,32 @@ pub fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(provider) => SimulatorContext::try_new(provider)?,
         None => SimulatorContext::try_new(quent_model::Noop)?,
     };
-    simulate(context, config);
+    let engine_id = if args.dynamic_engine_id {
+        Uuid::now_v7()
+    } else {
+        ENGINE_ID
+    };
+    simulate_with_engine_id(context, config, engine_id);
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_dynamic_engine_id_flag() {
+        assert!(
+            !Args::try_parse_from(["simulator"])
+                .unwrap()
+                .dynamic_engine_id
+        );
+        assert!(
+            Args::try_parse_from(["simulator", "--dynamic-engine-id"])
+                .unwrap()
+                .dynamic_engine_id
+        );
+    }
 
     #[test]
     fn reducing_operators_do_not_increase_data_volume() {
