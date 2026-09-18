@@ -6,7 +6,7 @@ publish.workspace = true
 [dependencies]
 quent-analyzer = { path = "../../../crates/analyzer" }
 quent-events = { path = "../../../crates/events" }
-quent-io = { path = "../../../crates/io" }
+quent-io-types = { path = "../../../crates/io/types" }
 quent-query-engine-ui = { path = "../ui" }
 quent-time = { path = "../../../crates/time" }
 quent-ui = { path = "../../../crates/ui"}

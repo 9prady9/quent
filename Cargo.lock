@@ -2910,7 +2910,7 @@ version = "0.1.0"
 dependencies = [
  "quent-analyzer",
  "quent-events",
- "quent-io",
+ "quent-io-types",
  "quent-query-engine-ui",
  "quent-time",
  "quent-ui",

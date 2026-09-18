@@ -6,7 +6,7 @@ use std::path::Path;
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult};
 use quent_events::Event;
-use quent_io::ImporterResult;
+use quent_io_types::ImporterResult;
 use quent_query_engine_ui as ui;
 use quent_ui::{
     entities::{request::EntityListRequest, response::EntityListResponse},

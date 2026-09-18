@@ -37,9 +37,10 @@ use std::collections::HashMap as StdHashMap;
 use std::sync::Arc;
 use tracing::debug;
 
+#[cfg(not(target_arch = "wasm32"))]
+use quent_analyzer::context::ContextInventory;
 use quent_analyzer::{
     AnalyzerError, AnalyzerResult, Entity, RefTreeEntity, Span,
-    context::ContextInventory,
     fsm::{FsmUsages, Transition},
     ref_tree::RefTreeCollection,
     resource::{
@@ -54,7 +55,10 @@ use quent_analyzer::{
     },
 };
 use quent_dynamic_attributes::DynamicValue;
-use quent_simulator_store::{self as schema, Simulator, SimulatorEvent};
+#[cfg(not(target_arch = "wasm32"))]
+use quent_simulator_store::Simulator;
+use quent_simulator_store::{self as schema, SimulatorEvent};
+#[cfg(not(target_arch = "wasm32"))]
 use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use quent_ui::fsm::FsmTypeDeclaration;
