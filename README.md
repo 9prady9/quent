@@ -326,8 +326,8 @@ additional code generators can provide C++ or Python bindings over that
 implementation. This keeps event behavior and exporter integration consistent
 across languages without maintaining separate language-specific SDKs.
 
-- [C++ integration example](examples/legacy/cpp-integration/)
-- [Python integration example](examples/legacy/python-integration/)
+- [C++ integration example](experimental/vibe/codegen/cpp/example/)
+- [Python integration example](experimental/vibe/codegen/python/example/)
 
 ## More advanced examples
 
@@ -461,5 +461,3 @@ fsms:
 - [Complete schema-based instrumentation example](crates/instrumentation-build/example/)
 - [Development guide](DEVELOPMENT.md)
 - [Contributing guide](CONTRIBUTING.md)
-- [Legacy documentation](docs/legacy/) — outdated and may not match current
-  APIs.
