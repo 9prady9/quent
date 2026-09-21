@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import {
   useDataFlowEnabled,
@@ -71,22 +71,34 @@ export const DAGNodeInfoPanel = ({
     });
   };
 
-  useEffect(() => {
+  // Expand/collapse and reset the tab as soon as the selection is made or cleared.
+  // Uses the prev-state-in-render pattern instead of useEffect to avoid a visible flicker.
+  const [prevHasSelection, setPrevHasSelection] = useState(hasSelection);
+  if (hasSelection !== prevHasSelection) {
+    setPrevHasSelection(hasSelection);
     updateExpanded(hasSelection);
     if (!hasSelection) {
       setActiveTab('stats');
     }
-  }, [hasSelection, updateExpanded]);
+  }
 
-  useEffect(() => {
+  // Collapse per-operator sections as soon as the selected operators change
+  const [prevSelectedOperatorIdsKey, setPrevSelectedOperatorIdsKey] =
+    useState(selectedOperatorIdsKey);
+  if (selectedOperatorIdsKey !== prevSelectedOperatorIdsKey) {
+    setPrevSelectedOperatorIdsKey(selectedOperatorIdsKey);
     setClosedOperatorIds(new Set());
-  }, [selectedOperatorIdsKey]);
+  }
 
-  useEffect(() => {
-    if (isPlaying && isExpanded && showDataFlowTab) {
+  // Jump to the data-flow tab as soon as it becomes available during playback
+  const shouldShowDataFlowTab = isPlaying && isExpanded && showDataFlowTab;
+  const [prevShouldShowDataFlowTab, setPrevShouldShowDataFlowTab] = useState(shouldShowDataFlowTab);
+  if (shouldShowDataFlowTab !== prevShouldShowDataFlowTab) {
+    setPrevShouldShowDataFlowTab(shouldShowDataFlowTab);
+    if (shouldShowDataFlowTab) {
       setActiveTab('data-flow');
     }
-  }, [isPlaying, isExpanded, showDataFlowTab]);
+  }
 
   const scrollClass = cn(
     'px-4 pb-2 overflow-auto',

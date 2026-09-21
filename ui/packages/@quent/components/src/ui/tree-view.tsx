@@ -74,21 +74,16 @@ function TreeView<T extends TreeDataItem = TreeDataItem>({
   compact = false,
   ...props
 }: TreeProps<T>) {
-  const [selectedItemId, setSelectedItemId] = React.useState<string | undefined>(
-    controlledSelectedItemId ?? initialSelectedItemId
-  );
-
-  React.useEffect(() => {
-    if (controlledSelectedItemId !== undefined) {
-      setSelectedItemId(controlledSelectedItemId);
-    }
-  }, [controlledSelectedItemId]);
+  const [uncontrolledSelectedItemId, setUncontrolledSelectedItemId] = React.useState<
+    string | undefined
+  >(initialSelectedItemId);
+  const selectedItemId = controlledSelectedItemId ?? uncontrolledSelectedItemId;
 
   const [draggedItem, setDraggedItem] = React.useState<T | null>(null);
 
   const handleSelectChange = React.useCallback(
     (item: T | undefined) => {
-      setSelectedItemId(item?.id);
+      setUncontrolledSelectedItemId(item?.id);
       if (onSelectChange) {
         onSelectChange(item);
       }
