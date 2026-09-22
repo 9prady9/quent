@@ -7,7 +7,8 @@ pub use quent_query_engine_analyzer::QueryEngineModel;
 use quent_query_engine_analyzer::ui::{QuentViewer, ViewerEventStream};
 use quent_query_engine_analyzer::{
     EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, QueryGroupEntity,
-    WorkerEntity, entities, ui::UiAnalyzer,
+    WorkerEntity, entities,
+    ui::{ContextEvent, UiAnalyzer},
 };
 use quent_query_engine_ui::{
     DataFlowTimelineBinned, EntityRef, OperatorFilter, QueryBundle, QueryEntities, QueryFilter,
@@ -59,7 +60,7 @@ use quent_dynamic_attributes::DynamicValue;
 use quent_simulator_store::Simulator;
 use quent_simulator_store::{self as schema, SimulatorEvent};
 #[cfg(not(target_arch = "wasm32"))]
-use quent_store::event::{EntityEventStore, ModelEventStore, filesystem::Store};
+use quent_store::event::{EntityEventStore, filesystem::Store};
 use quent_time::{SpanNanoSec, TimeNanoSec, TimeUnixNanoSec, Timestamp, to_nanosecs, to_secs};
 use quent_ui::fsm::FsmTypeDeclaration;
 use uuid::Uuid;
@@ -149,6 +150,52 @@ pub struct SimulatorUiAnalyzer {
     pub model: SimulatorModel,
 }
 
+impl SimulatorUiAnalyzer {
+    fn try_new_from_context_events(
+        engine_id: Uuid,
+        events: impl Iterator<Item = ContextEvent<SimulatorEvent>>,
+    ) -> AnalyzerResult<Self> {
+        let mut builder = SimulatorModelBuilder::try_new(engine_id)?;
+        {
+            let _span = tracing::info_span!("ingest").entered();
+            for event in events {
+                let context_id = event.context_id();
+                builder.try_push_from_context(context_id, event.into_event())?;
+            }
+        }
+        let model = {
+            let _span = tracing::info_span!("build").entered();
+            builder.try_build()?
+        };
+
+        tracing::info!(
+            engines = 1,
+            runtime_processes = model.runtime_processes.len(),
+            runtime_threads = model.runtime_threads.len(),
+            nvtx_sources = model.nvtx_sources().len(),
+            query_groups = model.query_groups.len(),
+            workers = model.workers.len(),
+            plans = model.plans.len(),
+            operators = model.operators.len(),
+            ports = model.ports.len(),
+            task_executors = model.task_executors.len(),
+            networks = model.networks.len(),
+            gpus = model.gpus.len(),
+            host_memories = model.host_memories.len(),
+            storages = model.storages.len(),
+            gpu_memories = model.gpu_memories.len(),
+            task_executor_threads = model.task_executor_threads.len(),
+            storage_channels = model.storage_channels.len(),
+            pcie_channels = model.pcie_channels.len(),
+            network_channels = model.network_channels.len(),
+            queries = model.queries.len(),
+            tasks = model.tasks.len(),
+        );
+
+        Ok(Self { model })
+    }
+}
+
 /// `quent-open` viewer entry for the simulator model: renders [`SimulatorEvent`]
 /// streams with [`SimulatorUiAnalyzer`]. The required `Viewer` path
 /// `quent-open` names when building a viewer for this analyzer's models.
@@ -198,11 +245,19 @@ impl QuentViewer for Viewer {
     ) -> quent_io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
         let (context_id, root) = context_location(dir)?;
         let events = Store::<Simulator>::new(root)
-            .events(context_id)
+            .load_context(context_id)
             .map_err(quent_io::ImporterError::other)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(quent_io::ImporterError::other)?;
+            .into_events();
         Ok(Box::new(events.into_iter()))
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl quent_query_engine_server::QuentViewerServer for Viewer {
+    fn additional_routes(
+        analyzers: quent_query_engine_server::analyzer_cache::AnalyzerCache<Self::Analyzer>,
+    ) -> quent_query_engine_server::ViewerRoutes {
+        nvtx_server::routes_from_analyzers(analyzers, SimulatorUiAnalyzer::nvtx_model)
     }
 }
 
@@ -286,40 +341,17 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
         engine_id: Uuid,
         events: impl Iterator<Item = Event<SimulatorEvent>>,
     ) -> AnalyzerResult<Self> {
-        let mut builder = SimulatorModelBuilder::try_new(engine_id)?;
-        {
-            let _span = tracing::info_span!("ingest").entered();
-            for event in events {
-                builder.try_push(event)?;
-            }
-        }
-        let model = {
-            let _span = tracing::info_span!("build").entered();
-            builder.try_build()?
-        };
+        Self::try_new_from_context_events(
+            engine_id,
+            events.map(|event| ContextEvent::new(Uuid::nil().into(), event)),
+        )
+    }
 
-        tracing::info!(
-            engines = 1,
-            query_groups = model.query_groups.len(),
-            workers = model.workers.len(),
-            plans = model.plans.len(),
-            operators = model.operators.len(),
-            ports = model.ports.len(),
-            task_executors = model.task_executors.len(),
-            networks = model.networks.len(),
-            gpus = model.gpus.len(),
-            host_memories = model.host_memories.len(),
-            storages = model.storages.len(),
-            gpu_memories = model.gpu_memories.len(),
-            task_executor_threads = model.task_executor_threads.len(),
-            storage_channels = model.storage_channels.len(),
-            pcie_channels = model.pcie_channels.len(),
-            network_channels = model.network_channels.len(),
-            queries = model.queries.len(),
-            tasks = model.tasks.len(),
-        );
-
-        Ok(Self { model })
+    fn try_new_from_contexts(
+        engine_id: Uuid,
+        events: impl Iterator<Item = ContextEvent<SimulatorEvent>>,
+    ) -> AnalyzerResult<Self> {
+        Self::try_new_from_context_events(engine_id, events)
     }
 
     fn query_bundle(&self, query_id: Uuid) -> AnalyzerResult<QueryBundle> {
@@ -1198,6 +1230,11 @@ impl UiAnalyzer for SimulatorUiAnalyzer {
 }
 
 impl SimulatorUiAnalyzer {
+    /// Return the unambiguous NVTX model reconstructed for `context_id`.
+    pub fn nvtx_model(&self, context_id: Uuid) -> Option<&nvtx_analyzer::NvtxModel> {
+        self.model.nvtx_model(context_id)
+    }
+
     /// Return an iterator over all tasks, filtered by time window and operator ids.
     fn entities_filtered(
         &self,

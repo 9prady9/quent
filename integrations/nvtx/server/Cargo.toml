@@ -19,6 +19,8 @@ nvtx-analyzer = { path = "../analyzer" }
 nvtx-bridge = { path = "../bridge" }
 nvtx-ui = { path = "../ui" }
 quent-events = { path = "../../../crates/events" }
+quent-query-engine-analyzer = { path = "../../../domains/query_engine/analyzer" }
+quent-query-engine-server = { path = "../../../domains/query_engine/server" }
 quent-store = { path = "../../../crates/store" }
 serde.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "sync"] }
