@@ -6,7 +6,7 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 use quent_analyzer::context::{ContextId, ContextIndex};
 use quent_analyzer::service::{AnalysisCache, BlockingTasks};
 use quent_events::Event;
-use quent_query_engine_analyzer::ui::UiAnalyzer;
+use quent_query_engine_analyzer::ui::{ContextEvent, UiAnalyzer};
 use quent_query_engine_ui as ui;
 use tracing::info_span;
 use uuid::Uuid;
@@ -26,14 +26,17 @@ pub type ListerFn = dyn Fn() -> ServerResult<ContextIndex> + Send + Sync;
 fn chain_context_events<A: UiAnalyzer>(
     importer: &ImporterFn<A>,
     context_ids: &[ContextId],
-) -> ServerResult<Box<dyn Iterator<Item = Event<A::Event>>>>
+) -> ServerResult<Box<dyn Iterator<Item = ContextEvent<A::Event>>>>
 where
     A::Event: 'static,
 {
-    let mut streams: Vec<Box<dyn Iterator<Item = Event<A::Event>>>> =
+    let mut streams: Vec<Box<dyn Iterator<Item = ContextEvent<A::Event>>>> =
         Vec::with_capacity(context_ids.len());
     for &context_id in context_ids {
-        streams.push(importer(context_id.into_uuid())?);
+        streams.push(Box::new(
+            importer(context_id.into_uuid())?
+                .map(move |event| ContextEvent::new(context_id, event)),
+        ));
     }
     Ok(Box::new(streams.into_iter().flatten()))
 }
@@ -114,7 +117,7 @@ where
                             &*importer,
                             &index.contexts_of_analysis_target(engine_id),
                         )?;
-                        Ok(A::extract_engine(engine_id, events)?)
+                        Ok(A::extract_engine_from_contexts(engine_id, events)?)
                     })
                     .collect()
             })
@@ -130,9 +133,34 @@ where
                 let _span = info_span!("load_engine", %engine_id).entered();
                 let context_ids = lister()?.contexts_of_analysis_target(engine_id);
                 let events = chain_context_events::<A>(&*importer, &context_ids)?;
-                Ok(A::try_new(engine_id, events)?)
+                Ok(A::try_new_from_contexts(engine_id, events)?)
             })
             .await
             .map_err(|error| ServerError::Cache(error.to_string()))
+    }
+
+    /// Return a representative aggregate analyzer containing `context_id`.
+    ///
+    /// A context may contribute to several analysis targets. Each such
+    /// analyzer receives the same context-local events, so context-owned views
+    /// can use the lowest target UUID deterministically. `None` means the
+    /// context is absent from the current inventory.
+    pub async fn get_for_context(&self, context_id: Uuid) -> ServerResult<Option<Arc<A>>> {
+        let lister = Arc::clone(&self.lister);
+        let target_id = self
+            .tasks
+            .run(move || -> ServerResult<Option<Uuid>> {
+                Ok(lister()?
+                    .analysis_targets_of_context(context_id.into())
+                    .into_iter()
+                    .next())
+            })
+            .await
+            .map_err(|error| ServerError::Cache(format!("blocking task panicked: {error}")))??;
+
+        match target_id {
+            Some(target_id) => self.get(target_id).await.map(Some),
+            None => Ok(None),
+        }
     }
 }

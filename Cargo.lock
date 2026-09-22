@@ -2175,6 +2175,8 @@ dependencies = [
  "quent-analyzer",
  "quent-events",
  "quent-io",
+ "quent-query-engine-analyzer",
+ "quent-query-engine-server",
  "quent-store",
  "serde",
  "serde_json",
@@ -3085,6 +3087,7 @@ name = "quent-simulator"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "libc",
  "petgraph",
  "quent-dynamic-attributes",
  "quent-io",
@@ -3093,17 +3096,21 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
 name = "quent-simulator-analyzer"
 version = "0.1.0"
 dependencies = [
+ "nvtx-analyzer",
+ "nvtx-server",
  "quent-analyzer",
  "quent-dynamic-attributes",
  "quent-events",
  "quent-io",
  "quent-query-engine-analyzer",
+ "quent-query-engine-server",
  "quent-query-engine-ui",
  "quent-simulator-store",
  "quent-store",
@@ -3141,6 +3148,8 @@ dependencies = [
 name = "quent-simulator-instrumentation"
 version = "0.1.0"
 dependencies = [
+ "nvtx-analyzer",
+ "nvtx-events",
  "quent-collector-client",
  "quent-events",
  "quent-instrumentation",
@@ -3156,7 +3165,6 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
- "nvtx-server",
  "quent-analyzer",
  "quent-io",
  "quent-query-engine-analyzer",
@@ -3174,6 +3182,7 @@ dependencies = [
 name = "quent-simulator-store"
 version = "0.1.0"
 dependencies = [
+ "nvtx-analyzer",
  "quent-analyzer",
  "quent-events",
  "quent-store",

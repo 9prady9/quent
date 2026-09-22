@@ -4,18 +4,15 @@
 use std::{net::ToSocketAddrs, path::PathBuf};
 
 use clap::Parser;
-use nvtx_server::{import_context_events, routes as nvtx_routes};
 use quent_analyzer::context::index_contexts;
 use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
 use quent_query_engine_analyzer::ui::QuentViewer;
-use quent_query_engine_server::{
-    analyzer_service_router_with_routes, collector_service, initialize_tracing,
-};
-use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
+use quent_query_engine_server::{collector_service, initialize_tracing, model_viewer_router};
+use quent_simulator_analyzer::Viewer;
 use quent_simulator_instrumentation as instrumentation;
 use quent_simulator_store::Simulator;
-use quent_store::event::{ModelEventStore, filesystem::Store};
+use quent_store::event::filesystem::Store;
 use tokio::net::TcpListener;
 
 type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
@@ -94,7 +91,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let importer_output_dir = output_dir.clone();
     let lister_output_dir = output_dir.clone();
-    let nvtx_output_dir = output_dir.clone();
 
     let format = match exporter.as_str() {
         "ndjson" => Format::Ndjson,
@@ -132,10 +128,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // make up an engine instance.
     let importer = move |context_id| {
         let events = Store::<Simulator>::new(&importer_output_dir)
-            .events(context_id)
+            .load_context(context_id)
             .map_err(quent_io::ImporterError::other)?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(quent_io::ImporterError::other)?;
+            .into_events();
         Ok::<Box<dyn Iterator<Item = _>>, quent_query_engine_server::error::ServerError>(Box::new(
             events.into_iter(),
         ))
@@ -144,15 +139,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let analyzer = async {
         axum::serve(
             TcpListener::bind(analyzer_addr).await?,
-            analyzer_service_router_with_routes::<SimulatorUiAnalyzer>(
-                Box::new(importer),
-                Box::new(lister),
-                cors_address,
-                nvtx_routes(Box::new(move |context_id| {
-                    import_context_events(&nvtx_output_dir, context_id)
-                })),
-            )?
-            .into_make_service(),
+            model_viewer_router::<Viewer>(Box::new(importer), Box::new(lister), cors_address)?
+                .into_make_service(),
         )
         .await?;
         Ok::<(), Box<dyn std::error::Error>>(())

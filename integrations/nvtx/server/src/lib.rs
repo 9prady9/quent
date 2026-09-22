@@ -22,6 +22,8 @@ use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
 use quent_analyzer::context::ContextId;
 use quent_analyzer::service::{AnalysisCache, AnalysisError, BlockingTasks};
 use quent_events::Event;
+use quent_query_engine_analyzer::ui::UiAnalyzer;
+use quent_query_engine_server::analyzer_cache::AnalyzerCache;
 use quent_store::event::filesystem::load_entity_stream;
 use uuid::Uuid;
 
@@ -71,6 +73,58 @@ pub fn import_context_events(
 struct CachedNvtx {
     model: NvtxModel,
     catalogs: SyncCache<u64, Arc<NvtxCatalog>>,
+}
+
+struct AnalyzerNvtxState<A, S>
+where
+    A: UiAnalyzer,
+{
+    analyzers: AnalyzerCache<A>,
+    selector: Arc<S>,
+    catalogs: SyncCache<(Uuid, u64), Arc<NvtxCatalog>>,
+    tasks: BlockingTasks,
+}
+
+impl<A, S> Clone for AnalyzerNvtxState<A, S>
+where
+    A: UiAnalyzer,
+{
+    fn clone(&self) -> Self {
+        Self {
+            analyzers: self.analyzers.clone(),
+            selector: Arc::clone(&self.selector),
+            catalogs: self.catalogs.clone(),
+            tasks: self.tasks.clone(),
+        }
+    }
+}
+
+impl<A, S> AnalyzerNvtxState<A, S>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+    S: for<'a> Fn(&'a A, Uuid) -> Option<&'a NvtxModel> + Send + Sync + 'static,
+{
+    fn new(analyzers: AnalyzerCache<A>, selector: S) -> Self {
+        Self {
+            analyzers,
+            selector: Arc::new(selector),
+            catalogs: SyncCache::builder()
+                .max_capacity(128 * MAX_CATALOG_ORIGINS)
+                .time_to_idle(Duration::from_hours(24))
+                .build(),
+            tasks: BlockingTasks::new(
+                NonZeroUsize::new(MAX_CONCURRENT_MODEL_TASKS).expect("nonzero task limit"),
+            ),
+        }
+    }
+
+    async fn analyzer(&self, context_id: Uuid) -> Result<Arc<A>, NvtxServerError> {
+        self.analyzers
+            .get_for_context(context_id)
+            .await
+            .map_err(|error| NvtxServerError::Internal(error.to_string()))?
+            .ok_or(NvtxServerError::NotFound)
+    }
 }
 
 impl CachedNvtx {
@@ -195,6 +249,60 @@ async fn viewport(
         .await?
 }
 
+/// Return stable metadata from an application analyzer relative to one query origin.
+async fn analyzer_catalog<A, S>(
+    State(state): State<AnalyzerNvtxState<A, S>>,
+    AxumPath(context_id): AxumPath<Uuid>,
+    Query(origin): Query<NvtxTimeOrigin>,
+) -> Result<Json<NvtxCatalog>, NvtxServerError>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+    S: for<'a> Fn(&'a A, Uuid) -> Option<&'a NvtxModel> + Send + Sync + 'static,
+{
+    let analyzer = state.analyzer(context_id).await?;
+    let selector = Arc::clone(&state.selector);
+    let catalogs = state.catalogs.clone();
+    state
+        .tasks
+        .run(move || {
+            let model = selector(&analyzer, context_id).ok_or(NvtxServerError::NotFound)?;
+            let catalog = catalogs.get_with((context_id, origin.query_start), || {
+                Arc::new(NvtxCatalog::from_model(model, origin.query_start))
+            });
+            Ok(Json((*catalog).clone()))
+        })
+        .await?
+}
+
+/// Build lanes and statistics from an application analyzer for one viewport.
+async fn analyzer_viewport<A, S>(
+    State(state): State<AnalyzerNvtxState<A, S>>,
+    AxumPath(context_id): AxumPath<Uuid>,
+    Query(origin): Query<NvtxTimeOrigin>,
+    Json(request): Json<NvtxViewportRequest>,
+) -> Result<Json<NvtxViewportResponse>, NvtxServerError>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+    S: for<'a> Fn(&'a A, Uuid) -> Option<&'a NvtxModel> + Send + Sync + 'static,
+{
+    validate_filter_count(&request)?;
+    let analyzer = state.analyzer(context_id).await?;
+    let selector = Arc::clone(&state.selector);
+    let catalogs = state.catalogs.clone();
+    state
+        .tasks
+        .run(move || {
+            let model = selector(&analyzer, context_id).ok_or(NvtxServerError::NotFound)?;
+            let catalog = catalogs.get_with((context_id, origin.query_start), || {
+                Arc::new(NvtxCatalog::from_model(model, origin.query_start))
+            });
+            NvtxViewportResponse::from_model_with_catalog(model, &catalog, request)
+                .map(Json)
+                .map_err(|error| NvtxServerError::BadRequest(error.to_string()))
+        })
+        .await?
+}
+
 /// Reject requests whose selector lists could cause disproportionate work.
 fn validate_filter_count(request: &NvtxViewportRequest) -> Result<(), NvtxServerError> {
     if request.selections.len() > MAX_DOMAIN_FILTERS {
@@ -227,6 +335,31 @@ pub fn routes(importer: Box<NvtxImporterFn>) -> Router {
         .route("/api/nvtx/contexts/{context_id}/viewport", post(viewport))
         .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
         .with_state(NvtxModelCache::new(importer))
+}
+
+/// Context-keyed NVTX API routes backed by an application's shared analyzers.
+///
+/// `selector` locates the NVTX model for the requested runtime context within
+/// the application analyzer returned by `analyzers`. The analyzer remains the
+/// sole owner of reconstruction; this router only caches UI catalogs by
+/// `(context_id, query_start)` and derives viewport responses from the borrowed
+/// model.
+pub fn routes_from_analyzers<A, S>(analyzers: AnalyzerCache<A>, selector: S) -> Router
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+    S: for<'a> Fn(&'a A, Uuid) -> Option<&'a NvtxModel> + Send + Sync + 'static,
+{
+    Router::new()
+        .route(
+            "/api/nvtx/contexts/{context_id}/catalog",
+            get(analyzer_catalog::<A, S>),
+        )
+        .route(
+            "/api/nvtx/contexts/{context_id}/viewport",
+            post(analyzer_viewport::<A, S>),
+        )
+        .layer(DefaultBodyLimit::max(MAX_BODY_BYTES))
+        .with_state(AnalyzerNvtxState::new(analyzers, selector))
 }
 
 #[cfg(test)]

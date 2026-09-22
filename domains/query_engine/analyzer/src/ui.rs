@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use quent_analyzer::{AnalyzerError, AnalyzerResult};
+use quent_analyzer::{AnalyzerError, AnalyzerResult, context::ContextId};
 use quent_events::Event;
 use quent_io_types::ImporterResult;
 use quent_query_engine_ui as ui;
@@ -23,6 +23,35 @@ use uuid::Uuid;
 
 use crate::QueryEngineModel;
 
+/// One model event together with the runtime context that stored it.
+///
+/// Entity IDs identify application objects, while a context identifies one
+/// instrumentation/export pipeline. Keeping both lets analyzers partition
+/// source-local protocols before aggregating an engine that spans contexts.
+#[derive(Debug)]
+pub struct ContextEvent<T> {
+    context_id: ContextId,
+    event: Event<T>,
+}
+
+impl<T> ContextEvent<T> {
+    pub fn new(context_id: ContextId, event: Event<T>) -> Self {
+        Self { context_id, event }
+    }
+
+    pub fn context_id(&self) -> ContextId {
+        self.context_id
+    }
+
+    pub fn event(&self) -> &Event<T> {
+        &self.event
+    }
+
+    pub fn into_event(self) -> Event<T> {
+        self.event
+    }
+}
+
 /// Trait for types that can analyze query engine telemetry for the purpose of
 /// visualization in a UI.
 pub trait UiAnalyzer {
@@ -34,6 +63,22 @@ pub trait UiAnalyzer {
     ) -> AnalyzerResult<Self>
     where
         Self: Sized;
+
+    /// Build an analyzer while retaining each event's source context.
+    ///
+    /// Existing analyzers can keep implementing [`Self::try_new`]; the default
+    /// discards context identity and preserves their previous behavior.
+    /// Analyzers that consume source-local protocols should override this and
+    /// partition those protocols before application-level aggregation.
+    fn try_new_from_contexts(
+        engine_id: Uuid,
+        events: impl Iterator<Item = ContextEvent<Self::Event>>,
+    ) -> AnalyzerResult<Self>
+    where
+        Self: Sized,
+    {
+        Self::try_new(engine_id, events.map(ContextEvent::into_event))
+    }
 
     /// Extract engine metadata from an event stream without fully building the model.
     ///
@@ -50,6 +95,18 @@ pub trait UiAnalyzer {
     ) -> AnalyzerResult<ui::Engine>
     where
         Self: Sized;
+
+    /// Extract engine metadata while retaining source context for analyzers
+    /// that need it. The default preserves the legacy context-free behavior.
+    fn extract_engine_from_contexts(
+        engine_id: Uuid,
+        events: impl Iterator<Item = ContextEvent<Self::Event>>,
+    ) -> AnalyzerResult<ui::Engine>
+    where
+        Self: Sized,
+    {
+        Self::extract_engine(engine_id, events.map(ContextEvent::into_event))
+    }
 
     /// Deliver a UI-friendly `QueryBundle` with all high-level yet
     /// non-volumous information related to this query.
