@@ -31,6 +31,7 @@ mod input;
 mod model;
 mod ranges;
 mod resource;
+mod source;
 mod span;
 mod stats;
 mod tables;
@@ -38,12 +39,14 @@ mod tables;
 pub use anomalies::ReconstructionAnomalies;
 pub use input::{
     NvtxAttributesData, NvtxAttributesView, NvtxEventData, NvtxEventView, NvtxMessageData,
-    NvtxMessageView,
+    NvtxMessageView, NvtxProcessBindingData,
 };
 pub use model::{NvtxModel, NvtxModelBuilder};
+pub use source::{NvtxSource, NvtxSourceError, NvtxSourcesBuilder};
 pub use span::{NvtxCategory, NvtxDomain, NvtxMark, NvtxSpan, NvtxThread, SpanId, SpanKind};
 pub use stats::{RangeStats, StatsKey};
 
 // Re-exported so consumers can read span attributes without depending on the
 // vocabulary crate directly. Carried verbatim, exactly as captured.
 pub use nvtx_events::{NvtxColor, NvtxPayload, NvtxPayloadValue};
+pub use uuid::Uuid;

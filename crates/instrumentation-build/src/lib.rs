@@ -55,6 +55,7 @@ mod data_type;
 mod events;
 mod model;
 mod namespace;
+mod nvtx;
 mod records;
 mod runtime;
 
@@ -63,6 +64,9 @@ use std::path::PathBuf;
 use convert_case::Case;
 use quent_constraints::{BaseConstraintsError, Report};
 use quent_fsm::{FsmConstraint, FsmError};
+use quent_os::{OsConstraint, OsError};
+use quent_ref_target::{RefTargetConstraint, RefTargetError};
+use quent_ref_tree::{RefTreeConstraint, RefTreeError};
 use quent_schema::{Entity, Identifier, Path, Schema};
 use quote::quote;
 
@@ -146,6 +150,14 @@ pub enum GenerateError {
     InvalidSchema(#[from] BaseConstraintsError),
     #[error("fsm validation failed: {0}")]
     InvalidFsm(#[from] FsmError),
+    #[error("OS schema validation failed: {0}")]
+    InvalidOs(#[source] Box<OsError>),
+    #[error("reference target validation failed: {0}")]
+    InvalidRefTarget(#[from] RefTargetError),
+    #[error("reference tree validation failed: {0}")]
+    InvalidRefTree(#[from] RefTreeError),
+    #[error("NVTX schema validation failed: {0}")]
+    InvalidNvtx(#[from] nvtx_schema::NvtxError),
     #[error("invalid derive path {derive:?}")]
     InvalidDerive {
         /// The offending derive entry.
@@ -201,6 +213,12 @@ pub enum GenerateError {
     Io(#[from] std::io::Error),
 }
 
+impl From<OsError> for GenerateError {
+    fn from(error: OsError) -> Self {
+        Self::InvalidOs(Box::new(error))
+    }
+}
+
 pub struct GenerateInfo {
     pub path: PathBuf,
     pub warnings: Vec<String>,
@@ -214,11 +232,21 @@ pub fn validate_schema(schema: &Schema) -> Result<Vec<String>, GenerateError> {
         base_constraints,
         unregistered_constraints,
         results,
-    } = quent_constraints::validate::<(FsmConstraint,)>(schema);
+    } = quent_constraints::validate::<(
+        RefTargetConstraint,
+        RefTreeConstraint,
+        FsmConstraint,
+        OsConstraint,
+        nvtx_schema::NvtxConstraint,
+    )>(schema);
 
     base_constraints?;
-    let (fsm,) = results;
+    let (ref_target, ref_tree, fsm, os, nvtx) = results;
+    ref_target?;
+    ref_tree?;
     fsm?;
+    os?;
+    nvtx?;
     Ok(unregistered_constraints)
 }
 
@@ -277,6 +305,7 @@ fn generate_str_unvalidated(schema: &Schema, opts: &Options) -> Result<String, G
     };
     let entity_types = opts.instrumentation.then(|| runtime::entity_types(schema));
     let types = generate_namespace(schema, opts, &namespaces)?;
+    let nvtx_bindings = nvtx::generate_bindings(schema, opts)?;
     let observable = opts
         .instrumentation
         .then(|| runtime::generate_model(schema, &namespaces, opts.collector_sink));
@@ -284,6 +313,7 @@ fn generate_str_unvalidated(schema: &Schema, opts: &Options) -> Result<String, G
         #reexports
         #entity_types
         #types
+        #nvtx_bindings
         #observable
     })
     .map_err(GenerateError::InvalidGeneratedCode)?;

@@ -8,6 +8,25 @@
 //! it never needs an intermediate collection of native NVTX events.
 
 use nvtx_events::{NvtxColor, NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload};
+use uuid::Uuid;
+
+/// Access to the process entity bound to a canonical NVTX stream.
+///
+/// Generated event enums return the referenced process only for their
+/// `Initialized` event. All captured NVTX events return `None`. Keeping this
+/// separate from [`NvtxEventData`] lets source dispatch validate the stream
+/// metadata before reconstructing any source-local NVTX handles.
+pub trait NvtxProcessBindingData {
+    /// Return the process entity referenced by this event, when it is the
+    /// stream's canonical initialization event.
+    fn nvtx_process_id(&self) -> Option<Uuid>;
+}
+
+impl<T: NvtxProcessBindingData + ?Sized> NvtxProcessBindingData for &T {
+    fn nvtx_process_id(&self) -> Option<Uuid> {
+        (**self).nvtx_process_id()
+    }
+}
 
 /// Access to an event's captured NVTX fields.
 ///
@@ -33,7 +52,9 @@ impl<T: NvtxEventData + ?Sized> NvtxEventData for &T {
 
 /// Access to a message without copying immediate strings or resolving handles.
 pub trait NvtxMessageData {
-    fn nvtx_message(&self) -> NvtxMessageView<'_>;
+    /// Return the captured message, or `None` when a stored tagged record is
+    /// malformed and cannot be represented without inventing data.
+    fn nvtx_message(&self) -> Option<NvtxMessageView<'_>>;
 }
 
 /// Access to the attributes carried by a range or mark.
@@ -125,11 +146,11 @@ pub enum NvtxEventView<'a> {
 }
 
 impl NvtxMessageData for NvtxMessage {
-    fn nvtx_message(&self) -> NvtxMessageView<'_> {
-        match self {
+    fn nvtx_message(&self) -> Option<NvtxMessageView<'_>> {
+        Some(match self {
             Self::String(text) => NvtxMessageView::String(text),
             Self::RegisteredHandle(handle) => NvtxMessageView::RegisteredHandle(*handle),
-        }
+        })
     }
 }
 
@@ -138,7 +159,10 @@ impl NvtxAttributesData for NvtxEventAttributes {
         NvtxAttributesView {
             category: self.category,
             color: self.color,
-            message: self.message.as_ref().map(NvtxMessageData::nvtx_message),
+            message: self
+                .message
+                .as_ref()
+                .and_then(NvtxMessageData::nvtx_message),
             payload: self.payload,
         }
     }
@@ -217,7 +241,7 @@ impl NvtxEventData for NvtxEvent {
                 handle: *handle,
                 identifier_type: *identifier_type,
                 identifier: *identifier,
-                message: message.as_ref().map(NvtxMessageData::nvtx_message),
+                message: message.as_ref().and_then(NvtxMessageData::nvtx_message),
             },
             Self::ResourceDestroy { handle } => NvtxEventView::ResourceDestroy { handle: *handle },
         })
