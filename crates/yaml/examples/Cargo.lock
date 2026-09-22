@@ -376,11 +376,14 @@ name = "quent-instrumentation-build"
 version = "0.1.0"
 dependencies = [
  "convert_case",
+ "nvtx-schema",
  "prettyplease",
  "proc-macro2",
  "quent-constraints",
  "quent-fsm",
+ "quent-os",
  "quent-ref-target",
+ "quent-ref-tree",
  "quent-schema",
  "quote",
  "syn 3.0.4",

@@ -6,13 +6,14 @@
 
 use std::path::PathBuf;
 
+use nvtx_events::{NvtxColor, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue};
 use quent_instrumentation::{
     EventCallback, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
 
 use demo::{
-    Connection, Context, Demo, DemoEvent, Handle, Observer, Query, Server, Thread, ThreadPool,
-    ThreadUsage, Uuid,
+    Connection, Context, Demo, DemoEvent, Handle, NvtxEvent, Observer, Query, Server, Thread,
+    ThreadPool, ThreadUsage, Uuid,
 };
 
 #[allow(unused)]
@@ -50,13 +51,40 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
         native_id: std::process::id(),
     })?;
 
+    // NVTX is a private generated stream bound to this process entity. Native
+    // callback data converts directly into the schema event vocabulary and
+    // uses the same observer/exporter pipeline as every other event.
+    let mut nvtx = context.observer::<NvtxEvent>().handle();
+    nvtx.initialized(server.as_entity_ref())?;
+    let native_thread_id = current_native_thread_id()?;
+    let nvtx_thread_id = u32::try_from(native_thread_id)?;
+    nvtx.name_thread(nvtx_thread_id, "demo-main".to_owned())?;
+    nvtx.range_start(
+        0,
+        1,
+        NvtxEventAttributes {
+            category: u32::MAX,
+            color: Some(NvtxColor {
+                color_type: i32::MIN,
+                value: u32::MAX,
+            }),
+            message: Some(NvtxMessage::String("generated-shared-io".to_owned())),
+            payload: Some(NvtxPayload {
+                payload_type: i32::MAX,
+                value: NvtxPayloadValue::Double(f64::from_bits(0x7ff8_0000_0000_1234)),
+            }),
+        }
+        .into(),
+    )?;
+    nvtx.range_end(0, 1)?;
+
     let mut pool = context.observer::<ThreadPool>().handle();
     pool.created(server.as_entity_ref())?;
 
     let mut thread = context.observer::<Thread>().handle();
     thread.started(
         demo::quent::os::Thread {
-            native_id: current_native_thread_id()?,
+            native_id: native_thread_id,
         },
         pool.as_entity_ref(),
     )?;
@@ -154,6 +182,11 @@ fn current_native_thread_id() -> std::io::Result<u64> {
 
 #[cfg(test)]
 mod tests {
+    use nvtx_analyzer::NvtxEventData;
+    use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue};
+
+    use crate::demo::NvtxEventEvent;
+
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     #[test]
     fn native_thread_id_is_nonzero() {
@@ -167,5 +200,74 @@ mod tests {
             super::current_native_thread_id().unwrap_err().kind(),
             std::io::ErrorKind::Unsupported
         );
+    }
+
+    #[test]
+    fn generated_nvtx_conversion_covers_the_native_vocabulary() {
+        let attributes = || NvtxEventAttributes {
+            category: 17,
+            message: Some(NvtxMessage::RegisteredHandle(19)),
+            payload: Some(NvtxPayload {
+                payload_type: -23,
+                value: NvtxPayloadValue::Int64(i64::MIN),
+            }),
+            ..Default::default()
+        };
+        let native = [
+            NvtxEvent::RangePush {
+                domain: 1,
+                thread_id: 2,
+                attributes: attributes(),
+            },
+            NvtxEvent::RangePop {
+                domain: 1,
+                thread_id: 2,
+            },
+            NvtxEvent::RangeStart {
+                domain: 1,
+                range_id: 3,
+                attributes: attributes(),
+            },
+            NvtxEvent::RangeEnd {
+                domain: 1,
+                range_id: 3,
+            },
+            NvtxEvent::Mark {
+                domain: 1,
+                attributes: attributes(),
+            },
+            NvtxEvent::DomainCreate {
+                domain: 1,
+                name: "domain".to_owned(),
+            },
+            NvtxEvent::DomainDestroy { domain: 1 },
+            NvtxEvent::RegisterString {
+                domain: 1,
+                handle: 19,
+                string: "registered".to_owned(),
+            },
+            NvtxEvent::NameCategory {
+                domain: 1,
+                category: 17,
+                name: "category".to_owned(),
+            },
+            NvtxEvent::NameThread {
+                thread_id: 2,
+                name: "thread".to_owned(),
+            },
+            NvtxEvent::ResourceCreate {
+                domain: 1,
+                handle: 5,
+                identifier_type: i32::MIN,
+                identifier: u64::MAX,
+                message: Some(NvtxMessage::String("resource".to_owned())),
+            },
+            NvtxEvent::ResourceDestroy { handle: 5 },
+        ];
+
+        for event in native {
+            let generated: NvtxEventEvent = event.clone().into();
+            assert_eq!(generated.nvtx_event(), event.nvtx_event());
+        }
     }
 }

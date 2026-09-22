@@ -32,6 +32,7 @@ quent-time = { path = "../../../crates/time" }
 # handles, never attacker-chosen, so HashDoS resistance buys nothing here.
 rustc-hash = { workspace = true }
 tracing = { workspace = true }
+uuid = { workspace = true }
 
 # Roundtrip-test-only. Optional *regular* dependencies rather than
 # dev-dependencies because Cargo does not allow `optional` in
@@ -47,4 +48,3 @@ quent-store = { path = "../../../crates/store", default-features = false, featur
 
 [dev-dependencies]
 tempfile = "3"
-uuid = { workspace = true }

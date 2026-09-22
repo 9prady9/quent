@@ -26,11 +26,11 @@ enum MessageRecord {
 }
 
 impl NvtxMessageData for MessageRecord {
-    fn nvtx_message(&self) -> NvtxMessageView<'_> {
-        match self {
+    fn nvtx_message(&self) -> Option<NvtxMessageView<'_>> {
+        Some(match self {
             Self::Inline(text) => NvtxMessageView::String(text),
             Self::Key(key) => NvtxMessageView::RegisteredHandle(*key),
-        }
+        })
     }
 }
 
@@ -42,7 +42,7 @@ struct AttributesRecord {
 impl NvtxAttributesData for AttributesRecord {
     fn nvtx_attributes(&self) -> NvtxAttributesView<'_> {
         NvtxAttributesView {
-            message: Some(self.label.nvtx_message()),
+            message: self.label.nvtx_message(),
             category: self.group,
             ..Default::default()
         }
