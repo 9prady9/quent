@@ -4,7 +4,7 @@
 use quent_events::{EntityEvent, Event};
 pub use quent_query_engine_analyzer::QueryEngineModel;
 #[cfg(not(target_arch = "wasm32"))]
-use quent_query_engine_analyzer::ui::{QuentViewer, ViewerEventStream};
+use quent_query_engine_analyzer::ui::{ImportedContext, QuentViewer, ViewerContext};
 use quent_query_engine_analyzer::{
     EngineEntity, OperatorEntity, PlanEntity, PortEntity, QueryEntity, QueryGroupEntity,
     WorkerEntity, entities,
@@ -276,13 +276,16 @@ impl QuentViewer for Viewer {
 
     fn import_events(
         dir: &std::path::Path,
-    ) -> quent_io::ImporterResult<ViewerEventStream<Self::Analyzer>> {
+    ) -> quent_io::ImporterResult<ViewerContext<Self::Analyzer>> {
         let (context_id, root) = context_location(dir)?;
-        let events = Store::<Simulator>::new(root)
+        let context = Store::<Simulator>::new(root)
             .load_context(context_id)
-            .map_err(quent_io::ImporterError::other)?
-            .into_events();
-        Ok(Box::new(events.into_iter()))
+            .map_err(quent_io::ImporterError::other)?;
+        let metadata = loaded_context_metadata(&context);
+        Ok(ImportedContext::new(
+            Box::new(context.into_events().into_iter()),
+            metadata,
+        ))
     }
 }
 

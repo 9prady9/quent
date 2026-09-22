@@ -13,6 +13,8 @@ quent-simulator-instrumentation = { path = "../../instrumentation" }
 uuid = { workspace = true }
 
 [dev-dependencies]
+nvtx-ui = { path = "../../../../../integrations/nvtx/ui" }
+serde_json.workspace = true
 axum = "0.8.7"
 quent-analyzer = { path = "../../../../../crates/analyzer" }
 quent-events = { workspace = true }

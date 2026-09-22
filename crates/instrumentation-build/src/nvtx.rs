@@ -74,7 +74,6 @@ pub(crate) fn generate_bindings(
     let payload = relative_type_path(bindings.records.payload.path(), &[], "");
     let attributes = relative_type_path(bindings.records.attributes.path(), &[], "");
     let event = relative_type_path(bindings.entity.path(), &[], "Event");
-    let marker = relative_type_path(bindings.entity.path(), &[], "");
 
     let message_string = nvtx_schema::MESSAGE_KIND_STRING;
     let message_registered = nvtx_schema::MESSAGE_KIND_REGISTERED_HANDLE;
@@ -215,14 +214,6 @@ pub(crate) fn generate_bindings(
                 }
             }
 
-            impl Handle<#marker> {
-                /// Forward one native callback event into this schema stream.
-                #[doc(hidden)]
-                #[allow(dead_code)]
-                pub(crate) fn capture_nvtx(&self, event: ::nvtx_events::NvtxEvent) {
-                    self.inner.emit(event.into());
-                }
-            }
         }
     });
 
@@ -474,13 +465,10 @@ mod tests {
             assert!(source.contains("identifier: *identifier"));
             if instrumentation {
                 assert!(source.contains("From<::nvtx_events::NvtxEvent>"));
-                assert!(source.contains("#[allow(dead_code)]\n    pub(crate) fn capture_nvtx"));
-                assert!(source.contains("pub(crate) fn capture_nvtx"));
                 assert!(!source.contains("nvtx_injection"));
                 assert!(!source.contains("with_emit_activation"));
             } else {
                 assert!(!source.contains("nvtx_events"));
-                assert!(!source.contains("capture_nvtx"));
             }
         }
     }

@@ -7,7 +7,7 @@ use quent_query_engine_analyzer::{
     ui::{ContextEvent, QuentViewer, UiAnalyzer},
 };
 use quent_simulator::{SimulationConfig, simulate};
-use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer, loaded_context_metadata};
+use quent_simulator_analyzer::{SimulatorUiAnalyzer, Viewer};
 use quent_simulator_instrumentation as instrumentation;
 use quent_simulator_store::Simulator;
 use quent_store::event::filesystem::Store;
@@ -30,24 +30,17 @@ fn assert_nvtx_routes_share_the_application_analyzer(
 
     use axum::{body::Body, http::Request};
     use quent_analyzer::context::{ContextIndex, ContextInventory};
-    use quent_query_engine_server::{
-        analyzer_cache::ImportedContext, error::ServerError, model_viewer_router_with_contexts,
-    };
+    use quent_query_engine_server::{error::ServerError, model_viewer_router};
     use tower::ServiceExt;
 
     let imports = Arc::new(AtomicUsize::new(0));
     let importer_root = root.to_path_buf();
     let importer_calls = Arc::clone(&imports);
-    let importer = move |requested_context_id| {
+    let importer = move |requested_context_id: uuid::Uuid| {
         importer_calls.fetch_add(1, Ordering::SeqCst);
-        let context = Store::<Simulator>::new(&importer_root)
-            .load_context(requested_context_id)
-            .map_err(quent_io::ImporterError::other)?;
-        let metadata = loaded_context_metadata(&context);
-        Ok::<_, ServerError>(ImportedContext::new(
-            Box::new(context.into_events().into_iter()),
-            metadata,
-        ))
+        Ok::<_, ServerError>(Viewer::import_events(
+            &importer_root.join(requested_context_id.to_string()),
+        )?)
     };
     let lister = move || {
         let mut index = ContextIndex::default();
@@ -59,9 +52,7 @@ fn assert_nvtx_routes_share_the_application_analyzer(
         );
         Ok::<_, ServerError>(index)
     };
-    let app =
-        model_viewer_router_with_contexts::<Viewer>(Box::new(importer), Box::new(lister), None)
-            .unwrap();
+    let app = model_viewer_router::<Viewer>(Box::new(importer), Box::new(lister), None).unwrap();
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -94,9 +85,7 @@ fn analyzer_routes_distinguish_present_empty_and_missing_nvtx_streams() {
     use axum::{body::Body, http::Request};
     use quent_analyzer::context::{ContextIndex, ContextInventory};
     use quent_events::EntityEvent;
-    use quent_query_engine_server::{
-        analyzer_cache::ImportedContext, error::ServerError, model_viewer_router_with_contexts,
-    };
+    use quent_query_engine_server::{error::ServerError, model_viewer_router};
     use tower::ServiceExt;
 
     fn create_context(root: &std::path::Path) -> (uuid::Uuid, uuid::Uuid) {
@@ -132,15 +121,10 @@ fn analyzer_routes_distinguish_present_empty_and_missing_nvtx_streams() {
         engine_id: uuid::Uuid,
     ) -> axum::Router {
         let importer_root = root.to_path_buf();
-        let importer = move |requested_context_id| {
-            let context = Store::<Simulator>::new(&importer_root)
-                .load_context(requested_context_id)
-                .map_err(quent_io::ImporterError::other)?;
-            let metadata = loaded_context_metadata(&context);
-            Ok::<_, ServerError>(ImportedContext::new(
-                Box::new(context.into_events().into_iter()),
-                metadata,
-            ))
+        let importer = move |requested_context_id: uuid::Uuid| {
+            Ok::<_, ServerError>(Viewer::import_events(
+                &importer_root.join(requested_context_id.to_string()),
+            )?)
         };
         let lister = move || {
             let mut index = ContextIndex::default();
@@ -152,8 +136,7 @@ fn analyzer_routes_distinguish_present_empty_and_missing_nvtx_streams() {
             );
             Ok::<_, ServerError>(index)
         };
-        model_viewer_router_with_contexts::<Viewer>(Box::new(importer), Box::new(lister), None)
-            .unwrap()
+        model_viewer_router::<Viewer>(Box::new(importer), Box::new(lister), None).unwrap()
     }
 
     let empty_root = tempfile::tempdir().unwrap();

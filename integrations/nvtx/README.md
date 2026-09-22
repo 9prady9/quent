@@ -35,10 +35,9 @@ portable when live capture is not requested.
 | `nvtx-events` | `events/` | The application-agnostic NVTX event **vocabulary** (`NvtxEvent` + attribute/payload types). Pure Rust, upstreamable to the NVTX Rust crates. |
 | `nvtx-schema` | `schema/` | Canonical schema composition and validation for `nvtx: true`, including the typed process binding and lossless NVTX records. |
 | `nvtx-injection` | `injection/` | The **NVTX C ABI layer**. Fills NVTX's callback tables, converts each call into a verbatim `NvtxEvent`, and hands it to a sink-agnostic `Fn(NvtxEvent)` hook. Attach in-process via the `static-injection` feature, or at runtime as a cdylib via `NVTX_INJECTION64_PATH`. |
-| `nvtx-bridge` | `bridge/` | The native-event bridge retained for low-level capture fixtures and historical consumers. New schema-generated models use their canonical generated event type. |
 | `nvtx-analyzer` | `analyzer/` | Borrowed field-access traits and one reconstruction implementation for both native and independently generated event types. It reconstructs each `(context, process, stream)` source independently. |
 | `nvtx-ui` / `nvtx-server` | `ui/`, `server/` | Reusable presentation and analyzer-backed HTTP routes. The server borrows the application's shared analyzer cache. |
-| `nvtx-example` | `example/` | A runnable, self-verifying test of the low-level injection layer. |
+| `nvtx-example` | `example/` | A generated model exercising capture, shared export/import, and reconstruction. |
 
 ## How capture works
 
@@ -137,8 +136,8 @@ Until the multi-context router tracked by issue #696 lands, the production
 backend permits one hook installation per process. A later activation returns
 `HandleError::SourceActivation`; it does not export a phantom private binding.
 
-The bundled low-level example uses a callback exporter to debug-print native
-capture events and validate the injection layer. Run it without a GPU:
+The bundled example uses a generated process model and a callback exporter to
+debug-print captured schema events. Run it without a GPU:
 
 ```sh
 pixi run cargo run -p nvtx-example
@@ -161,12 +160,12 @@ subprocess, no files:
 pixi run cargo test -p nvtx-example
 ```
 
-The analyzer's gated roundtrip sends a real capture through Quent's NDJSON
+The example's roundtrip sends a real capture through Quent's NDJSON
 filesystem exporter, loads it through `quent-store`, and then runs the shared
 NVTX reconstruction:
 
 ```sh
-pixi run cargo test -p nvtx-analyzer --features real-capture-tests --test roundtrip
+pixi run cargo test -p nvtx-example --test roundtrip
 ```
 
 ## Captured surface

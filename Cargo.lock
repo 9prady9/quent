@@ -2097,26 +2097,12 @@ dependencies = [
 name = "nvtx-analyzer"
 version = "0.1.0"
 dependencies = [
- "nvtx-bridge",
  "nvtx-events",
- "nvtx-example",
  "quent-events",
- "quent-instrumentation",
- "quent-store",
  "quent-time",
  "rustc-hash",
- "tempfile",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "nvtx-bridge"
-version = "0.1.0"
-dependencies = [
- "nvtx-events",
- "quent-events",
- "serde",
 ]
 
 [[package]]
@@ -2132,10 +2118,17 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "nvtx",
- "nvtx-bridge",
+ "nvtx-analyzer",
  "nvtx-events",
  "nvtx-injection",
+ "quent-events",
  "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-store",
+ "quent-store-build",
+ "quent-yaml",
+ "serde",
+ "tempfile",
  "uuid",
 ]
 
@@ -2170,20 +2163,11 @@ dependencies = [
  "axum",
  "moka",
  "nvtx-analyzer",
- "nvtx-bridge",
- "nvtx-events",
  "nvtx-ui",
  "quent-analyzer",
- "quent-events",
- "quent-io",
  "quent-query-engine-analyzer",
  "quent-query-engine-server",
- "quent-store",
  "serde",
- "serde_json",
- "tempfile",
- "tokio",
- "tower",
  "tracing",
  "uuid",
 ]
@@ -2204,7 +2188,6 @@ name = "nvtx-ui"
 version = "0.1.0"
 dependencies = [
  "nvtx-analyzer",
- "nvtx-bridge",
  "nvtx-events",
  "quent-events",
  "quent-time",
@@ -3141,6 +3124,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "clap",
+ "nvtx-ui",
  "quent-analyzer",
  "quent-dynamic-attributes",
  "quent-events",
@@ -3156,6 +3140,7 @@ dependencies = [
  "quent-store",
  "quent-time",
  "quent-ui",
+ "serde_json",
  "tempfile",
  "tokio",
  "tower",
@@ -3190,7 +3175,6 @@ dependencies = [
  "quent-query-engine-server",
  "quent-simulator-analyzer",
  "quent-simulator-instrumentation",
- "quent-simulator-store",
  "quent-store",
  "tokio",
  "tracing",

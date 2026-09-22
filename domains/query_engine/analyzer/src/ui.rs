@@ -253,9 +253,24 @@ pub trait UiAnalyzer {
     }
 }
 
-/// Boxed owned stream of an analyzer's [`UiAnalyzer::Event`] from
-/// [`QuentViewer::import_events`].
-pub type ViewerEventStream<A> = Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>;
+/// A context's imported model events and stream availability.
+pub struct ImportedContext<T> {
+    events: Box<dyn Iterator<Item = Event<T>>>,
+    metadata: ContextMetadata,
+}
+
+impl<T> ImportedContext<T> {
+    pub fn new(events: Box<dyn Iterator<Item = Event<T>>>, metadata: ContextMetadata) -> Self {
+        Self { events, metadata }
+    }
+
+    pub fn into_events(self, context_id: ContextId) -> impl Iterator<Item = ContextEvent<T>> {
+        self.events
+            .map(move |event| ContextEvent::with_metadata(context_id, event, self.metadata.clone()))
+    }
+}
+
+pub type ViewerContext<A> = ImportedContext<<A as UiAnalyzer>::Event>;
 
 /// Model viewer entry point for `quent-open`: connects the event importer to
 /// the rendering [`UiAnalyzer`].
@@ -281,8 +296,7 @@ pub trait QuentViewer {
     /// discovering every available context.
     fn context_inventory(dir: &Path) -> ImporterResult<quent_analyzer::context::ContextInventory>;
 
-    /// Reconstruct the model's event stream from one context directory, yielding
-    /// events of the [`Analyzer`](Self::Analyzer)'s event type. Wraps the model
-    /// marker's generated `import_events`.
-    fn import_events(dir: &Path) -> ImporterResult<ViewerEventStream<Self::Analyzer>>;
+    /// Import one context through the generated store, retaining its model
+    /// events and stream availability for shared analysis.
+    fn import_events(dir: &Path) -> ImporterResult<ViewerContext<Self::Analyzer>>;
 }

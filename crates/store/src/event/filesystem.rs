@@ -289,9 +289,8 @@ where
 /// recognized formats with disabled features and I/O failures remain errors.
 ///
 /// This lower-level entrypoint does not validate model metadata. Generated
-/// models should use [`Store`], which performs that validation. It also supports
-/// legacy auxiliary streams whose enclosing model does not declare them.
-pub fn load_entity_stream<T>(context: &Path) -> Result<Option<EventIterator<T, Error>>>
+/// models use [`Store`], which performs that validation.
+fn load_entity_stream<T>(context: &Path) -> Result<Option<EventIterator<T, Error>>>
 where
     T: EntityEvent + DeserializeOwned + 'static,
 {

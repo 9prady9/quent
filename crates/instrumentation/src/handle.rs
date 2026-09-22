@@ -95,23 +95,6 @@ impl<E: InstrumentedEntity> HandleInner<E> {
         self.observer.emit(self.id, event);
     }
 
-    /// Emits an event, then invokes the observer's configured source
-    /// activation callback.
-    ///
-    /// Hidden because generated event methods select the one event, if any,
-    /// that activates a private source.
-    #[doc(hidden)]
-    pub fn emit_and_activate(
-        &self,
-        native_process_id: u32,
-        event: E::Event,
-    ) -> Result<(), HandleError> {
-        self.observer
-            .validate_native_process_id(native_process_id)?;
-        self.observer.emit(self.id, event);
-        self.observer.activate_after_emit(self.id)
-    }
-
     /// Emits an event unless the bit at `INDEX` was previously set.
     ///
     /// Hidden because generated once-event methods provide the typed API.

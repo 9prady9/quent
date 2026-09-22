@@ -526,22 +526,12 @@ dependencies = [
 name = "nvtx-analyzer"
 version = "0.1.0"
 dependencies = [
- "nvtx-bridge",
  "nvtx-events",
  "quent-events",
  "quent-time",
  "rustc-hash",
  "tracing",
  "uuid",
-]
-
-[[package]]
-name = "nvtx-bridge"
-version = "0.1.0"
-dependencies = [
- "nvtx-events",
- "quent-events",
- "serde",
 ]
 
 [[package]]

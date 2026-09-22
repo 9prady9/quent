@@ -5,36 +5,15 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use quent_analyzer::context::{ContextId, ContextIndex};
 use quent_analyzer::service::{AnalysisCache, BlockingTasks};
-use quent_events::Event;
-use quent_query_engine_analyzer::ui::{ContextEvent, ContextMetadata, UiAnalyzer};
+use quent_query_engine_analyzer::ui::{ContextEvent, UiAnalyzer, ViewerContext};
 use quent_query_engine_ui as ui;
 use tracing::info_span;
 use uuid::Uuid;
 
 use crate::error::{ServerError, ServerResult};
 
-/// Reads one source's events for a context id. Called once per context that
-/// makes up a root; the cache chains the results.
-pub type ImporterFn<A> = dyn Fn(Uuid) -> ServerResult<Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>>
-    + Send
-    + Sync;
-
-/// One context loaded with both its model events and stream availability.
-pub struct ImportedContext<T> {
-    events: Box<dyn Iterator<Item = Event<T>>>,
-    metadata: ContextMetadata,
-}
-
-impl<T> ImportedContext<T> {
-    /// Retain a context load for analyzer construction.
-    pub fn new(events: Box<dyn Iterator<Item = Event<T>>>, metadata: ContextMetadata) -> Self {
-        Self { events, metadata }
-    }
-}
-
-/// Reads one source context without discarding common loader metadata.
-pub type ContextImporterFn<A> =
-    dyn Fn(Uuid) -> ServerResult<ImportedContext<<A as UiAnalyzer>::Event>> + Send + Sync;
+/// Imports one context through the model's common event store.
+pub type ImporterFn<A> = dyn Fn(Uuid) -> ServerResult<ViewerContext<A>> + Send + Sync;
 
 type AnalyzerImporterFn<A> = dyn Fn(ContextId) -> ServerResult<Box<dyn Iterator<Item = ContextEvent<<A as UiAnalyzer>::Event>>>>
     + Send
@@ -90,27 +69,11 @@ where
 {
     pub(crate) fn new(importer: Box<ImporterFn<A>>, lister: Box<ListerFn>) -> Self {
         let importer = move |context_id: ContextId| {
-            Ok(Box::new(
-                importer(context_id.into_uuid())?
-                    .map(move |event| ContextEvent::new(context_id, event)),
+            Ok(
+                Box::new(importer(context_id.into_uuid())?.into_events(context_id))
+                    as Box<dyn Iterator<Item = ContextEvent<A::Event>>>,
             )
-                as Box<dyn Iterator<Item = ContextEvent<A::Event>>>)
         };
-        Self::from_context_event_importer(Arc::new(importer), lister)
-    }
-
-    pub(crate) fn new_with_contexts(
-        importer: Box<ContextImporterFn<A>>,
-        lister: Box<ListerFn>,
-    ) -> Self {
-        let importer =
-            move |context_id: ContextId| {
-                let ImportedContext { events, metadata } = importer(context_id.into_uuid())?;
-                Ok(Box::new(events.map(move |event| {
-                    ContextEvent::with_metadata(context_id, event, metadata.clone())
-                }))
-                    as Box<dyn Iterator<Item = ContextEvent<A::Event>>>)
-            };
         Self::from_context_event_importer(Arc::new(importer), lister)
     }
 

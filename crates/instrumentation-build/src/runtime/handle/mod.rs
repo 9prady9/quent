@@ -133,24 +133,14 @@ fn ordinary_handle(
                     }
                 }
                 Cardinality::Multi => {
-                    let emit = if let Some(process_field) = &activation_field {
-                        quote! {
-                            let __quent_native_process_id = #process_field.native_id;
-                            self.inner.emit_and_activate(__quent_native_process_id, #construct)
-                        }
-                    } else {
-                        quote! {
-                            self.inner.emit(#construct);
-                            ::core::result::Result::Ok(())
-                        }
-                    };
                     quote! {
                         #docs
                         pub fn #method(
                             &self,
                             #(#params),*
                         ) -> ::core::result::Result<(), ::quent_instrumentation::HandleError> {
-                            #emit
+                            self.inner.emit(#construct);
+                            ::core::result::Result::Ok(())
                         }
                     }
                 }

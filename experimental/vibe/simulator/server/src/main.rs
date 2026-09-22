@@ -8,14 +8,9 @@ use quent_analyzer::context::index_contexts;
 use quent_io::ExporterOptions;
 use quent_io::filesystem::{self, Format};
 use quent_query_engine_analyzer::ui::QuentViewer;
-use quent_query_engine_server::{
-    analyzer_cache::ImportedContext, collector_service, initialize_tracing,
-    model_viewer_router_with_contexts,
-};
-use quent_simulator_analyzer::{Viewer, loaded_context_metadata};
+use quent_query_engine_server::{collector_service, initialize_tracing, model_viewer_router};
+use quent_simulator_analyzer::Viewer;
 use quent_simulator_instrumentation as instrumentation;
-use quent_simulator_store::Simulator;
-use quent_store::event::filesystem::Store;
 use tokio::net::TcpListener;
 
 type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
@@ -135,26 +130,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Reconstruct one context's umbrella event stream from its per-entity
     // subdirectories; the analyzer cache chains this across all the contexts that
     // make up an engine instance.
-    let importer = move |context_id| {
-        let context = Store::<Simulator>::new(&importer_output_dir)
-            .load_context(context_id)
-            .map_err(quent_io::ImporterError::other)?;
-        let metadata = loaded_context_metadata(&context);
-        Ok::<_, quent_query_engine_server::error::ServerError>(ImportedContext::new(
-            Box::new(context.into_events().into_iter()),
-            metadata,
-        ))
+    let importer = move |context_id: uuid::Uuid| {
+        Ok(Viewer::import_events(
+            &importer_output_dir.join(context_id.to_string()),
+        )?)
     };
 
     let analyzer = async {
         axum::serve(
             TcpListener::bind(analyzer_addr).await?,
-            model_viewer_router_with_contexts::<Viewer>(
-                Box::new(importer),
-                Box::new(lister),
-                cors_address,
-            )?
-            .into_make_service(),
+            model_viewer_router::<Viewer>(Box::new(importer), Box::new(lister), cors_address)?
+                .into_make_service(),
         )
         .await?;
         Ok::<(), Box<dyn std::error::Error>>(())

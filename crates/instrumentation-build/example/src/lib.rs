@@ -6,10 +6,7 @@
 
 use std::path::PathBuf;
 
-use nvtx_events::{
-    NvtxColor, NvtxEvent as NativeNvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload,
-    NvtxPayloadValue,
-};
+use nvtx_events::{NvtxColor, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue};
 use quent_instrumentation::{
     EventCallback, ExporterOptions, FileSystemExporterOptions, FileSystemFormat,
 };
@@ -61,14 +58,11 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
     nvtx.initialized(server.as_entity_ref())?;
     let native_thread_id = current_native_thread_id()?;
     let nvtx_thread_id = u32::try_from(native_thread_id)?;
-    nvtx.capture_nvtx(NativeNvtxEvent::NameThread {
-        thread_id: nvtx_thread_id,
-        name: "demo-main".to_owned(),
-    });
-    nvtx.capture_nvtx(NativeNvtxEvent::RangeStart {
-        domain: 0,
-        range_id: 1,
-        attributes: NvtxEventAttributes {
+    nvtx.name_thread(nvtx_thread_id, "demo-main".to_owned())?;
+    nvtx.range_start(
+        0,
+        1,
+        NvtxEventAttributes {
             category: u32::MAX,
             color: Some(NvtxColor {
                 color_type: i32::MIN,
@@ -79,12 +73,10 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
                 payload_type: i32::MAX,
                 value: NvtxPayloadValue::Double(f64::from_bits(0x7ff8_0000_0000_1234)),
             }),
-        },
-    });
-    nvtx.capture_nvtx(NativeNvtxEvent::RangeEnd {
-        domain: 0,
-        range_id: 1,
-    });
+        }
+        .into(),
+    )?;
+    nvtx.range_end(0, 1)?;
 
     let mut pool = context.observer::<ThreadPool>().handle();
     pool.created(server.as_entity_ref())?;
