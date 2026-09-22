@@ -19,6 +19,11 @@ quent-instrumentation = { path = "../../../../crates/instrumentation", features 
 serde = { workspace = true, features = ["derive"] }
 uuid = { workspace = true, features = ["serde", "v7"] }
 
+[target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dependencies]
+nvtx-injection = { path = "../../../../integrations/nvtx/injection", features = [
+    "static-injection",
+] }
+
 [build-dependencies]
 quent-instrumentation-build = { path = "../../../../crates/instrumentation-build" }
 quent-yaml = { path = "../../../../crates/yaml" }

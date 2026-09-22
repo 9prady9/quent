@@ -5,17 +5,17 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 
 use quent_analyzer::context::{ContextId, ContextIndex};
 use quent_analyzer::service::{AnalysisCache, BlockingTasks};
-use quent_events::Event;
-use quent_query_engine_analyzer::ui::{ContextEvent, UiAnalyzer};
+use quent_query_engine_analyzer::ui::{ContextEvent, UiAnalyzer, ViewerContext};
 use quent_query_engine_ui as ui;
 use tracing::info_span;
 use uuid::Uuid;
 
 use crate::error::{ServerError, ServerResult};
 
-/// Reads one source's events for a context id. Called once per context that
-/// makes up a root; the cache chains the results.
-pub type ImporterFn<A> = dyn Fn(Uuid) -> ServerResult<Box<dyn Iterator<Item = Event<<A as UiAnalyzer>::Event>>>>
+/// Imports one context through the model's common event store.
+pub type ImporterFn<A> = dyn Fn(Uuid) -> ServerResult<ViewerContext<A>> + Send + Sync;
+
+type AnalyzerImporterFn<A> = dyn Fn(ContextId) -> ServerResult<Box<dyn Iterator<Item = ContextEvent<<A as UiAnalyzer>::Event>>>>
     + Send
     + Sync;
 
@@ -24,7 +24,7 @@ pub type ListerFn = dyn Fn() -> ServerResult<ContextIndex> + Send + Sync;
 
 /// Chain one source-importer call per context into a single event stream.
 fn chain_context_events<A: UiAnalyzer>(
-    importer: &ImporterFn<A>,
+    importer: &AnalyzerImporterFn<A>,
     context_ids: &[ContextId],
 ) -> ServerResult<Box<dyn Iterator<Item = ContextEvent<A::Event>>>>
 where
@@ -33,10 +33,7 @@ where
     let mut streams: Vec<Box<dyn Iterator<Item = ContextEvent<A::Event>>>> =
         Vec::with_capacity(context_ids.len());
     for &context_id in context_ids {
-        streams.push(Box::new(
-            importer(context_id.into_uuid())?
-                .map(move |event| ContextEvent::new(context_id, event)),
-        ));
+        streams.push(importer(context_id)?);
     }
     Ok(Box::new(streams.into_iter().flatten()))
 }
@@ -47,7 +44,7 @@ where
     A: UiAnalyzer,
 {
     analyzers: AnalysisCache<Uuid, A, ServerError>,
-    importer: Arc<ImporterFn<A>>,
+    importer: Arc<AnalyzerImporterFn<A>>,
     lister: Arc<ListerFn>,
     tasks: BlockingTasks,
 }
@@ -71,10 +68,23 @@ where
     A: UiAnalyzer + Send + Sync + 'static,
 {
     pub(crate) fn new(importer: Box<ImporterFn<A>>, lister: Box<ListerFn>) -> Self {
+        let importer = move |context_id: ContextId| {
+            Ok(
+                Box::new(importer(context_id.into_uuid())?.into_events(context_id))
+                    as Box<dyn Iterator<Item = ContextEvent<A::Event>>>,
+            )
+        };
+        Self::from_context_event_importer(Arc::new(importer), lister)
+    }
+
+    fn from_context_event_importer(
+        importer: Arc<AnalyzerImporterFn<A>>,
+        lister: Box<ListerFn>,
+    ) -> Self {
         let tasks = BlockingTasks::new(NonZeroUsize::new(4).unwrap());
         Self {
             analyzers: AnalysisCache::new(32, Duration::from_hours(24), tasks.clone()),
-            importer: Arc::from(importer),
+            importer,
             lister: Arc::from(lister),
             tasks,
         }

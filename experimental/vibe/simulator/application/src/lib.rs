@@ -984,6 +984,8 @@ impl Worker {
         thread: Uuid,
     ) -> Vec<Batch> {
         let operator = work.operator;
+        #[cfg(all(target_os = "linux", target_pointer_width = "64"))]
+        let _nvtx_range = nvtx::LocalRange::new(nvtx::Str::from_str_lossy(&operator.name()));
         let mut task = TaskHandle::Queueing(context.observer::<instr::Task>().handle().queueing(
             format!("task-{}", work.task_index),
             operator.handle.as_entity_ref(),
