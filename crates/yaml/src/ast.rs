@@ -16,6 +16,7 @@ use serde::Deserialize;
 
 use crate::extensions::{
     fsm::FsmSpec,
+    os::OsType,
     reference::{RefForm, ScopeForm},
     resource::{ResourceBoundsField, ResourceDecl, UsesForm},
 };
@@ -140,6 +141,8 @@ pub(crate) enum TypeExpr {
     Option(OptionType),
 
     // Built-in extension AST nodes.
+    /// A canonical operating-system identity record.
+    Os(OsType),
     /// A targeted entity reference with optional data.
     Ref(RefForm),
     /// A tree-forming entity reference with optional data.

@@ -2689,6 +2689,7 @@ dependencies = [
  "petgraph",
  "quent-schema",
  "rustc-hash",
+ "thiserror",
 ]
 
 [[package]]
@@ -2769,10 +2770,12 @@ dependencies = [
 name = "quent-instrumentation-build-example"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "quent-instrumentation",
  "quent-instrumentation-build",
  "quent-yaml",
  "serde",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2902,6 +2905,18 @@ dependencies = [
  "walkdir",
  "zip 8.6.0",
  "zstd 0.14.0",
+]
+
+[[package]]
+name = "quent-os"
+version = "0.1.0"
+dependencies = [
+ "quent-constraints",
+ "quent-ref-target",
+ "quent-ref-tree",
+ "quent-schema",
+ "rustc-hash",
+ "thiserror",
 ]
 
 [[package]]
@@ -3226,6 +3241,7 @@ dependencies = [
  "indexmap",
  "quent-constraints",
  "quent-fsm",
+ "quent-os",
  "quent-ref-target",
  "quent-ref-tree",
  "quent-resource",

@@ -14,6 +14,7 @@
 
 use quent_constraints::{Constraint, validate};
 use quent_fsm::FsmConstraint;
+use quent_os::OsConstraint;
 use quent_ref_target::RefTargetConstraint;
 use quent_ref_tree::RefTreeConstraint;
 use quent_resource::{Resource, ResourceConstraint};
@@ -24,6 +25,7 @@ use crate::ast::{self, AnnotationMap, Model, TypeExpr};
 use crate::diag::{Diagnostic, Diagnostics};
 
 pub(crate) mod fsm;
+pub(crate) mod os;
 pub(crate) mod reference;
 pub(crate) mod resource;
 
@@ -87,6 +89,14 @@ impl Elaborator {
             }
         }
         ModelElaboration { entities, records }
+    }
+
+    pub(crate) fn elaborate_schema_records(
+        &self,
+        records: &[Record],
+        entities: &[Entity],
+    ) -> Vec<Record> {
+        os::referenced_records(records, entities)
     }
 
     pub(crate) fn elaborate_entity(
@@ -167,6 +177,7 @@ impl Elaborator {
         sink: &mut Diagnostics,
     ) -> Option<DataType> {
         match expr {
+            TypeExpr::Os(form) => Some(os::elaborate_type(form)),
             TypeExpr::Ref(form) => {
                 reference::elaborate(&form.r#ref, form.data.as_deref(), false, path, self, sink)
             }
@@ -216,6 +227,7 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
         RefTreeConstraint,
         FsmConstraint,
         ResourceConstraint,
+        OsConstraint,
     )>(schema);
     if let Err(error) = report.base_constraints {
         for entity in error.entities_without_events {
@@ -240,12 +252,13 @@ pub(crate) fn validate_schema(schema: &Schema, sink: &mut Diagnostics) -> Option
         }
     }
 
-    let (ref_target, ref_tree, fsm, resource) = report.results;
+    let (ref_target, ref_tree, fsm, resource, os) = report.results;
     for result in [
         ref_target.map_err(|error| error.to_string()),
         ref_tree.map_err(|error| error.to_string()),
         fsm.map_err(|error| error.to_string()),
         resource.map_err(|error| error.to_string()),
+        os.map_err(|error| error.to_string()),
     ] {
         if let Err(error) = result {
             sink.error("", error, None);

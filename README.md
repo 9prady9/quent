@@ -169,6 +169,8 @@ of applications.
 - [`quent-ref-tree`](crates/ref-tree/): allows forming hierarchies of
   event-emitting entities to, e.g., provide the canonical path of performance
   analysis exploration through all event data from a UI.
+- [`quent-os`](crates/os/): identifies entities as operating-system processes
+  and threads so their events can be correlated with external event streams.
 
 Semantic modules can address application- or domain-specific concerns. For
 example, applications like query engines often capture their computational path

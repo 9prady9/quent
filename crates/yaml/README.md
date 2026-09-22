@@ -279,18 +279,37 @@ name can also be used as a type.
 
 Composite types use mapping forms:
 
-| YAML | Meaning |
-| --- | --- |
-| `{ list: string }` | List of strings |
-| `{ option: u64 }` | Optional `u64` |
-| `ref` | Reference to any entity |
-| `{ ref: Worker }` | Reference to a `Worker` |
+| YAML                         | Meaning                          |
+| ---------------------------- | -------------------------------- |
+| `{ list: string }`           | List of strings                  |
+| `{ option: u64 }`            | Optional `u64`                   |
+| `ref`                        | Reference to any entity          |
+| `{ ref: Worker }`            | Reference to a `Worker`          |
 | `{ ref: Worker, data: u64 }` | `Worker` reference carrying data |
-| `{ scope-ref: Pipeline }` | Tree-forming entity reference |
-| `{ uses: Memory }` | Resource usage reference |
 
 Composite forms can nest. For example, `{ option: { list: string } }` is an
 optional list of strings.
+
+Semantic modules add these type forms:
+
+### Reference tree
+
+| YAML                      | Meaning                       |
+| ------------------------- | ----------------------------- |
+| `{ scope-ref: Pipeline }` | Tree-forming entity reference |
+
+### Resource
+
+| YAML               | Meaning                  |
+| ------------------ | ------------------------ |
+| `{ uses: Memory }` | Resource usage reference |
+
+### Operating system
+
+| YAML              | Meaning                           |
+| ----------------- | --------------------------------- |
+| `{ os: process }` | Operating-system process identity |
+| `{ os: thread }`  | Operating-system thread identity  |
 
 ## Complete model
 

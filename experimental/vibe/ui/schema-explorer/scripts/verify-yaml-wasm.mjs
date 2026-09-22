@@ -33,6 +33,20 @@ for (const [name, entityCount] of examples) {
   assert.ok(Array.isArray(schema.entities[0][0].namespace), name);
 }
 
+const osSchema = JSON.parse(parse_schema_json(`
+quent: alpha
+model: OsRecords
+entities:
+  Process:
+    events:
+      started:
+        attributes:
+          process: quent::os::Process
+`));
+assert.ok(osSchema.records.some(([path]) => (
+  path.name === 'Process' && path.namespace.join('::') === 'quent::os'
+)));
+
 assert.throws(
   () => parse_schema_json('quent: alpha\nmodel: broken\nentities: ['),
   /editor\.yaml/,
