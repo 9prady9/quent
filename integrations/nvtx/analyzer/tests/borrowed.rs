@@ -255,7 +255,7 @@ fn borrowed_replay_preserves_all_kinds_anomalies_and_span_ids() {
     ];
     events.reverse();
     let borrowed =
-        NvtxModelBuilder::build_from(events.iter().map(|event| (event.timestamp, &event.data.0)));
+        NvtxModelBuilder::build_from(events.iter().map(|event| (event.timestamp, &event.data)));
     let native = NvtxModelBuilder::build(events);
 
     assert_same_model(&borrowed, &native);
@@ -346,7 +346,7 @@ fn sorting_retains_equal_timestamp_pairing_and_last_registration() {
         range_start(10, 1, 3, "open after orphan"),
     ];
     let model =
-        NvtxModelBuilder::build_from(events.iter().map(|event| (event.timestamp, &event.data.0)));
+        NvtxModelBuilder::build_from(events.iter().map(|event| (event.timestamp, &event.data)));
     assert_eq!(span(&model, "zero duration").duration(), Some(0));
     assert_eq!(span(&model, "open after orphan").end, None);
     assert_eq!(model.anomalies().orphan_range_ends, 1);

@@ -11,7 +11,6 @@
 
 use std::collections::BTreeMap;
 
-use nvtx_bridge::NvtxEventEntity;
 use quent_events::Event;
 use quent_time::TimeUnixNanoSec;
 
@@ -176,11 +175,11 @@ impl NvtxModelBuilder {
     /// Events may arrive in any order and may reference handles registered
     /// anywhere in the stream. Incomplete pairs are represented rather than
     /// dropped or guessed — see the crate docs for what each case yields.
-    pub fn build(events: impl IntoIterator<Item = Event<NvtxEventEntity>>) -> NvtxModel {
+    pub fn build<T: NvtxEventData>(events: impl IntoIterator<Item = Event<T>>) -> NvtxModel {
         Self::build_from(
             events
                 .into_iter()
-                .map(|event| (event.timestamp, event.data.0)),
+                .map(|event| (event.timestamp, event.data)),
         )
     }
 

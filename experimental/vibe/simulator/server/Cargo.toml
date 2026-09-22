@@ -16,7 +16,6 @@ quent-query-engine-analyzer = { path = "../../../../domains/query_engine/analyze
 quent-query-engine-server = { path = "../../../../domains/query_engine/server" }
 quent-simulator-analyzer = { path = "../analyzer" }
 quent-simulator-instrumentation = { path = "../instrumentation", features = ["collector"] }
-quent-simulator-store = { path = "../store" }
 quent-store = { path = "../../../../crates/store", features = [
     "io-msgpack",
     "io-ndjson",

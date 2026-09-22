@@ -3,18 +3,13 @@
 
 //! End-to-end proof against a **real** NVTX capture.
 //!
-//! Every other test feeds the builder a hand-built stream, so they all agree
-//! with each other about what a capture looks like. This one closes that loop by
-//! running the actual injection layer and reconstructing whatever comes out.
-//!
-//! Gated behind `real-capture-tests` because it links the real injection layer,
-//! whose `nvtx-sys` dependency runs bindgen and native C compilation.
-#![cfg(feature = "real-capture-tests")]
+//! Exercises generated instrumentation, the common exporter/importer, and
+//! borrowed reconstruction together with the native injection layer.
 
 use nvtx_analyzer::{NvtxModelBuilder, SpanKind, StatsKey};
-use nvtx_bridge::NvtxEventEntity;
-use quent_instrumentation::{FileSystemExporterOptions, FileSystemFormat};
-use quent_store::event::filesystem::load_entity_stream;
+use nvtx_example::store::{NvtxDemo, NvtxDemoEvent};
+use quent_instrumentation::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
+use quent_store::event::filesystem::Store;
 use uuid::Uuid;
 
 /// The default (NULL) NVTX domain, which is where `nvtx_example` annotates.
@@ -29,20 +24,21 @@ fn example_capture_roundtrip() {
 
     // Injection is process-global and one-shot, so this is deliberately a single
     // test doing a single capture — no parallel capture is possible here.
-    nvtx_example::run_capture(context_id, exporter).expect("capture");
+    nvtx_example::run_capture(context_id, ExporterOptions::FileSystem(exporter)).expect("capture");
 
-    // Read the full envelopes back through the same store importer used by the
-    // NVTX server. This covers serialization, per-file format selection, and
-    // timestamp preservation before reconstruction.
-    let context = output.path().join(context_id.to_string());
-    let events = load_entity_stream::<NvtxEventEntity>(&context)
-        .expect("inspect captured stream")
-        .expect("captured NVTX stream")
-        .collect::<Result<Vec<_>, _>>()
-        .expect("import captured events");
-    assert!(!events.is_empty(), "no NVTX events captured");
-
-    let model = NvtxModelBuilder::build(events);
+    let events = Store::<NvtxDemo>::new(output.path())
+        .load_context(context_id)
+        .expect("import generated model events")
+        .into_events();
+    assert!(
+        events
+            .iter()
+            .any(|event| matches!(event.data, NvtxDemoEvent::Process(_)))
+    );
+    let model = NvtxModelBuilder::build_from(events.iter().filter_map(|event| match &event.data {
+        NvtxDemoEvent::NvtxEvent(data) => Some((event.timestamp, data)),
+        _ => None,
+    }));
 
     // `nvtx::name_thread` — the name must reach the thread view.
     assert!(

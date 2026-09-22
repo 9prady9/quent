@@ -11,8 +11,6 @@ use quent_query_engine_analyzer::ui::QuentViewer;
 use quent_query_engine_server::{collector_service, initialize_tracing, model_viewer_router};
 use quent_simulator_analyzer::Viewer;
 use quent_simulator_instrumentation as instrumentation;
-use quent_simulator_store::Simulator;
-use quent_store::event::filesystem::Store;
 use tokio::net::TcpListener;
 
 type SimulatorContext = instrumentation::Context<instrumentation::Simulator>;
@@ -103,7 +101,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let collector = async {
         collector_service::<SimulatorContext, _>(move |id| {
-            SimulatorContext::try_with_id(id, exporter_kind.clone()).map_err(|e| e.to_string())
+            SimulatorContext::try_with_id_and_options(
+                id,
+                exporter_kind.clone(),
+                instrumentation::ContextOptions::default()
+                    .with_source_capture(instrumentation::SourceCapture::Disabled),
+            )
+            .map_err(|e| e.to_string())
         })?
         .serve(collector_addr)
         .await
@@ -126,14 +130,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Reconstruct one context's combined event stream from its per-entity
     // subdirectories; the analyzer cache chains this across all the contexts that
     // make up an engine instance.
-    let importer = move |context_id| {
-        let events = Store::<Simulator>::new(&importer_output_dir)
-            .load_context(context_id)
-            .map_err(quent_io::ImporterError::other)?
-            .into_events();
-        Ok::<Box<dyn Iterator<Item = _>>, quent_query_engine_server::error::ServerError>(Box::new(
-            events.into_iter(),
-        ))
+    let importer = move |context_id: uuid::Uuid| {
+        Ok(Viewer::import_events(
+            &importer_output_dir.join(context_id.to_string()),
+        )?)
     };
 
     let analyzer = async {
