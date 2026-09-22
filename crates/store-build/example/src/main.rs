@@ -3,7 +3,7 @@
 
 //! Runs instrumentation and loads its filesystem-exported events.
 
-use demo::{Demo, Query};
+use demo::{Demo, NvtxEvent, Query};
 use quent_store::event::filesystem::Store;
 use quent_store::event::{EntityEventStore, ModelEventStore};
 
@@ -22,6 +22,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Load events for one entity type.
     for event in store.entity_events::<Query>(context_id)? {
+        println!("{:?}", event?);
+    }
+
+    println!("\n--- NVTX events through the generated store ---");
+
+    for event in store.entity_events::<NvtxEvent>(context_id)? {
         println!("{:?}", event?);
     }
 
@@ -44,11 +50,13 @@ mod tests {
         time::Duration,
     };
 
+    use nvtx_analyzer::{NvtxMessageData, NvtxModelBuilder, NvtxPayloadValue};
     use quent_analyzer::context::ContextId;
     use quent_analyzer::service::{AnalysisCache, BlockingTasks};
     use quent_store::event::filesystem::StreamAvailability;
 
     use super::*;
+    use crate::demo::{DemoEvent, NvtxEventEvent, ServerEvent};
 
     #[test]
     fn generated_model_shares_one_context_load_between_analysis_consumers() {
@@ -89,8 +97,58 @@ mod tests {
         );
         assert_eq!(
             context.stream_availability("NvtxEvent"),
-            StreamAvailability::Undeclared
+            StreamAvailability::Populated
         );
         assert!(!context.events().is_empty());
+
+        let mut process_id = None;
+        let mut bound_process_id = None;
+        let mut stream_id = None;
+        for event in context.events() {
+            match &event.data {
+                DemoEvent::Server(ServerEvent::Booted { .. }) => process_id = Some(event.id),
+                DemoEvent::NvtxEvent(NvtxEventEvent::Initialized { process }) => {
+                    bound_process_id = Some(process.target);
+                    stream_id = Some(event.id);
+                }
+                DemoEvent::NvtxEvent(_) => {
+                    assert_eq!(stream_id.get_or_insert(event.id), &event.id);
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(bound_process_id, process_id);
+
+        let nvtx = NvtxModelBuilder::build_from(context.events().iter().filter_map(|event| {
+            match &event.data {
+                DemoEvent::NvtxEvent(data) => Some((event.timestamp, data)),
+                _ => None,
+            }
+        }));
+        assert_eq!(nvtx.spans().len(), 1);
+        let span = &nvtx.spans()[0];
+        assert_eq!(span.name, "generated-shared-io");
+        assert_eq!(span.category, Some(u32::MAX));
+        assert_eq!(span.color.unwrap().color_type, i32::MIN);
+        assert_eq!(span.color.unwrap().value, u32::MAX);
+        let payload = span.payload.unwrap();
+        assert_eq!(payload.payload_type, i32::MAX);
+        let NvtxPayloadValue::Double(value) = payload.value else {
+            panic!("expected the generated double payload kind")
+        };
+        assert_eq!(value.to_bits(), 0x7ff8_0000_0000_1234);
+        assert!(span.end.is_some());
+        assert!(
+            nvtx.threads()
+                .iter()
+                .any(|thread| thread.name == "demo-main")
+        );
+
+        let malformed_message = crate::demo::quent::nvtx::Message {
+            kind: u8::MAX,
+            string: None,
+            registered_handle: None,
+        };
+        assert_eq!(malformed_message.nvtx_message(), None);
     }
 }

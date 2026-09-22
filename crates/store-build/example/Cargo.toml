@@ -5,6 +5,7 @@ edition = "2024"
 publish = false
 
 [dependencies]
+nvtx-analyzer = { path = "../../../integrations/nvtx/analyzer" }
 quent-events = { path = "../../events", features = ["serde"] }
 quent-instrumentation-build-example = { path = "../../instrumentation-build/example" }
 quent-store = { path = "../../store" }

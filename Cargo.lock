@@ -2773,11 +2773,14 @@ name = "quent-instrumentation-build"
 version = "0.1.0"
 dependencies = [
  "convert_case",
+ "nvtx-schema",
  "prettyplease 0.3.0",
  "proc-macro2",
  "quent-constraints",
  "quent-fsm",
+ "quent-os",
  "quent-ref-target",
+ "quent-ref-tree",
  "quent-schema",
  "quote",
  "syn 3.0.5",
@@ -2789,6 +2792,8 @@ name = "quent-instrumentation-build-example"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "nvtx-analyzer",
+ "nvtx-events",
  "quent-instrumentation",
  "quent-instrumentation-build",
  "quent-yaml",
@@ -3222,6 +3227,7 @@ dependencies = [
 name = "quent-store-build-example"
 version = "0.1.0"
 dependencies = [
+ "nvtx-analyzer",
  "quent-analyzer",
  "quent-events",
  "quent-instrumentation-build-example",
