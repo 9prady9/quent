@@ -57,6 +57,8 @@ members = [
     "crates/os",
     "crates/instrumentation-build",
     "crates/instrumentation-build/example",
+    "crates/instrumentation-build/test/nvtx-multisink",
+    "crates/instrumentation-build/test/nvtx-multisink-backend",
     "crates/yaml",
     "crates/store",
     "crates/store-build",

@@ -79,7 +79,6 @@ fn emit_events(context: Context<Demo>) -> Result<Uuid, Box<dyn std::error::Error
                 payload_type: i32::MAX,
                 value: NvtxPayloadValue::Double(f64::from_bits(0x7ff8_0000_0000_1234)),
             }),
-            ..Default::default()
         },
     });
     nvtx.capture_nvtx(NativeNvtxEvent::RangeEnd {
@@ -191,10 +190,19 @@ fn current_native_thread_id() -> std::io::Result<u64> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "nvtx-capture")]
+    use std::sync::{Arc, Mutex};
+
     use nvtx_analyzer::NvtxEventData;
     use nvtx_events::{NvtxEvent, NvtxEventAttributes, NvtxMessage, NvtxPayload, NvtxPayloadValue};
 
     use crate::demo::NvtxEventEvent;
+
+    #[cfg(feature = "nvtx-capture")]
+    use crate::demo::{
+        Context, ContextOptions, Demo, DemoEvent, HandleError, Noop, Server, ServerEvent,
+        SourceCapture,
+    };
 
     #[cfg(any(target_os = "linux", target_os = "macos", windows))]
     #[test]
@@ -278,5 +286,133 @@ mod tests {
             let generated: NvtxEventEvent = event.clone().into();
             assert_eq!(generated.nvtx_event(), event.nvtx_event());
         }
+    }
+
+    #[cfg(feature = "nvtx-capture")]
+    #[test]
+    fn process_identity_controls_private_live_capture() {
+        // No-op contexts never retain the generated activation callback and
+        // therefore accept synthetic process identities without attaching.
+        let noop = Context::<Demo>::try_new(Noop).unwrap();
+        let mut noop_server = noop.observer::<Server>().handle();
+        noop_server
+            .booted(crate::demo::quent::os::Process {
+                native_id: u32::MAX,
+            })
+            .unwrap();
+        drop(noop);
+
+        // An active context can explicitly disable source capture while still
+        // exporting ordinary process events.
+        let disabled_events = Arc::new(Mutex::new(Vec::new()));
+        let disabled = Context::<Demo>::try_new_with_options(
+            quent_instrumentation::EventCallback::<DemoEvent>::new({
+                let events = Arc::clone(&disabled_events);
+                move |event| events.lock().unwrap().push(event)
+            }),
+            ContextOptions::default().with_source_capture(SourceCapture::Disabled),
+        )
+        .unwrap();
+        let mut disabled_server = disabled.observer::<Server>().handle();
+        disabled_server
+            .booted(crate::demo::quent::os::Process {
+                native_id: u32::MAX,
+            })
+            .unwrap();
+        drop(disabled_server);
+        drop(disabled);
+        let disabled_events = disabled_events.lock().unwrap();
+        assert!(
+            disabled_events
+                .iter()
+                .any(|event| matches!(&event.data, DemoEvent::Server(ServerEvent::Booted { .. })))
+        );
+        assert!(
+            disabled_events
+                .iter()
+                .all(|event| !matches!(&event.data, DemoEvent::NvtxEvent(_)))
+        );
+        drop(disabled_events);
+
+        let captured = Arc::new(Mutex::new(Vec::new()));
+        let context =
+            Context::<Demo>::try_new(quent_instrumentation::EventCallback::<DemoEvent>::new({
+                let captured = Arc::clone(&captured);
+                move |event| captured.lock().unwrap().push(event)
+            }))
+            .unwrap();
+        let mut server = context.observer::<Server>().handle();
+        let process_id = server.uuid();
+
+        // A foreign PID fails before the once flag or either binding event is
+        // emitted, so the caller can retry with this process's real PID.
+        let foreign_pid = std::process::id().wrapping_add(1);
+        assert!(matches!(
+            server.booted(crate::demo::quent::os::Process {
+                native_id: foreign_pid,
+            }),
+            Err(HandleError::SourceActivation { .. })
+        ));
+        assert!(!server.booted_emitted());
+        server
+            .booted(crate::demo::quent::os::Process {
+                native_id: std::process::id(),
+            })
+            .unwrap();
+        nvtx::mark(c"generated-private-capture");
+        drop(server);
+        drop(context);
+
+        let captured = captured.lock().unwrap();
+        assert!(captured.iter().any(|event| {
+            event.id == process_id
+                && matches!(&event.data, DemoEvent::Server(ServerEvent::Booted { .. }))
+        }));
+        let nvtx = captured
+            .iter()
+            .filter_map(|event| match &event.data {
+                DemoEvent::NvtxEvent(data) => Some((event.id, data)),
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert!(matches!(
+            nvtx.first(),
+            Some((_, NvtxEventEvent::Initialized { process })) if process.target == process_id
+        ));
+        assert!(nvtx.iter().any(|(_, event)| matches!(
+            event,
+            NvtxEventEvent::Mark { attributes, .. }
+                if attributes.message.as_ref().and_then(|message| message.string.as_deref())
+                    == Some("generated-private-capture")
+        )));
+        drop(captured);
+
+        // The current backend is process-global and one-shot until #696. A
+        // second active context receives the installation failure as a typed
+        // handle error rather than panicking or exporting a phantom private
+        // binding.
+        let failed = Arc::new(Mutex::new(Vec::new()));
+        let second =
+            Context::<Demo>::try_new(quent_instrumentation::EventCallback::<DemoEvent>::new({
+                let failed = Arc::clone(&failed);
+                move |event| failed.lock().unwrap().push(event)
+            }))
+            .unwrap();
+        let mut second_server = second.observer::<Server>().handle();
+        assert!(matches!(
+            second_server.booted(crate::demo::quent::os::Process {
+                native_id: std::process::id(),
+            }),
+            Err(HandleError::SourceActivation { .. })
+        ));
+        drop(second_server);
+        drop(second);
+        assert!(
+            failed
+                .lock()
+                .unwrap()
+                .iter()
+                .all(|event| !matches!(&event.data, DemoEvent::NvtxEvent(_)))
+        );
     }
 }

@@ -1008,9 +1008,10 @@ mod tests {
         base: u128,
         native_process_id: u32,
         native_thread_id: u64,
-        start: u64,
-        end: u64,
+        lifetime: std::ops::Range<u64>,
     ) -> RuntimeIds {
+        let start = lifetime.start;
+        let end = lifetime.end;
         let ids = RuntimeIds {
             process: Uuid::from_u128(base),
             worker: Uuid::from_u128(base + 1),
@@ -1220,8 +1221,8 @@ mod tests {
 
         // The two processes and threads deliberately reuse their native IDs.
         // Context and process entity identity keep the source-local streams apart.
-        let first = emit_runtime(&mut builder, first_context, engine_id, 10, 42, 7, 10, 20);
-        let second = emit_runtime(&mut builder, second_context, engine_id, 30, 42, 7, 10, 20);
+        let first = emit_runtime(&mut builder, first_context, engine_id, 10, 42, 7, 10..20);
+        let second = emit_runtime(&mut builder, second_context, engine_id, 30, 42, 7, 10..20);
 
         let model = builder.try_build().unwrap();
         assert_eq!(model.nvtx_sources().len(), 2);
@@ -1265,7 +1266,7 @@ mod tests {
                 instance_name: None,
             }),
         );
-        let first = emit_runtime(&mut builder, context_id, engine_id, 10, 42, 7, 10, 20);
+        let first = emit_runtime(&mut builder, context_id, engine_id, 10, 42, 7, 10..20);
         let reused =
             emit_additional_runtime_thread(&mut builder, context_id, first.process, 30, 7, 30, 40);
 
@@ -1295,7 +1296,7 @@ mod tests {
                 instance_name: None,
             }),
         );
-        let first = emit_runtime(&mut builder, context_id, engine_id, 50, 42, 7, 10, 20);
+        let first = emit_runtime(&mut builder, context_id, engine_id, 50, 42, 7, 10..20);
         emit_additional_runtime_thread(&mut builder, context_id, first.process, 70, 7, 30, 40);
         emit_additional_runtime_thread(&mut builder, context_id, first.process, 90, 7, 32, 38);
         let model = builder.try_build().unwrap();

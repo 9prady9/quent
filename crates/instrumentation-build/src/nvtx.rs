@@ -4,11 +4,61 @@
 //! Generated accessors from canonical schema NVTX types to shared analysis.
 
 use proc_macro2::TokenStream;
-use quent_schema::Schema;
+use quent_constraints::Constraint as _;
+use quent_fsm::FsmConstraint;
+use quent_schema::{Cardinality, DataType, Identifier, Path, Schema};
 use quote::quote;
 
 use crate::common::relative_type_path;
 use crate::{GenerateError, Options};
+
+/// The selected process event that activates a generated private NVTX source.
+pub(crate) struct CaptureConfig {
+    pub(crate) process: Path,
+    pub(crate) process_event: Identifier,
+    pub(crate) process_field: Identifier,
+}
+
+/// Resolve live-capture generation against the validated canonical schema.
+pub(crate) fn capture_config(
+    schema: &Schema,
+    opts: &Options,
+) -> Result<Option<CaptureConfig>, GenerateError> {
+    if !opts.nvtx_capture {
+        return Ok(None);
+    }
+    let Some(bindings) = nvtx_schema::validated_bindings(schema)? else {
+        return Ok(None);
+    };
+    if !opts.instrumentation {
+        return Err(GenerateError::NvtxCaptureRequiresInstrumentation);
+    }
+
+    let process = schema
+        .entity(&bindings.process_target)
+        .expect("validated NVTX binding targets an existing process entity");
+    if process.annotations().has_constraint(FsmConstraint::NAME) {
+        return Err(GenerateError::NvtxCaptureFsmProcessUnsupported {
+            entity: bindings.process_target,
+        });
+    }
+    let process_record = quent_os::process_path();
+    let (process_event, process_field) = process
+        .events()
+        .find_map(|event| {
+            event.fields().find_map(|field| {
+                (field.ty() == &DataType::Record(process_record.clone())).then_some((event, field))
+            })
+        })
+        .expect("validated OS process entity has an identity-bearing event");
+    debug_assert_eq!(process_event.cardinality(), Cardinality::Once);
+
+    Ok(Some(CaptureConfig {
+        process: bindings.process_target,
+        process_event: process_event.name().clone(),
+        process_field: process_field.name().clone(),
+    }))
+}
 
 /// Generate analysis bindings when the canonical NVTX extension is present.
 pub(crate) fn generate_bindings(
@@ -176,6 +226,13 @@ pub(crate) fn generate_bindings(
         }
     });
 
+    let capture_platform_guard = opts.nvtx_capture.then(|| {
+        quote! {
+            #[cfg(not(all(target_os = "linux", target_pointer_width = "64")))]
+            compile_error!("generated NVTX live capture supports 64-bit Linux only");
+        }
+    });
+
     Ok(quote! {
         impl ::nvtx_analyzer::NvtxProcessBindingData for #event {
             fn nvtx_process_id(&self) -> Option<::nvtx_analyzer::Uuid> {
@@ -318,12 +375,14 @@ pub(crate) fn generate_bindings(
             }
         }
 
+        #capture_platform_guard
         #capture
     })
 }
 
 #[cfg(test)]
 mod tests {
+    use quent_fsm::{FsmEntityBuilder, StateDecl};
     use quent_os::{process_path, process_record};
     use quent_schema::builder::{EntityBuilder, EventBuilder, SchemaBuilder};
     use quent_schema::test_utils::{field, ident, path};
@@ -417,11 +476,169 @@ mod tests {
                 assert!(source.contains("From<::nvtx_events::NvtxEvent>"));
                 assert!(source.contains("#[allow(dead_code)]\n    pub(crate) fn capture_nvtx"));
                 assert!(source.contains("pub(crate) fn capture_nvtx"));
+                assert!(!source.contains("nvtx_injection"));
+                assert!(!source.contains("with_emit_activation"));
             } else {
                 assert!(!source.contains("nvtx_events"));
                 assert!(!source.contains("capture_nvtx"));
             }
         }
+    }
+
+    #[test]
+    fn live_capture_is_private_gated_and_attached_to_the_process_once_event() {
+        let source = generate_str(
+            &nvtx_schema(),
+            &Options {
+                nvtx_capture: true,
+                serde: true,
+                collector_sink: true,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+
+        assert!(source.contains("pub(crate) struct NvtxEvent;"));
+        assert!(!source.contains("pub struct NvtxEvent;"));
+        assert!(!source.contains("pub nvtx_event_observer"));
+        assert!(source.contains(".emit_once_and_activate::<"));
+        assert!(source.contains("0,\n            >"));
+        assert!(source.contains("let __quent_native_process_id = process.native_id"));
+        assert!(source.contains("with_emit_activation"));
+        assert!(source.contains("::nvtx_injection::register_source"));
+        assert!(source.contains("::nvtx_injection::SourceBinding"));
+        assert!(source.contains("context_id: __quent_nvtx_context_id"));
+        assert!(source.contains("process_id: __quent_nvtx_process_id"));
+        assert!(source.contains("stream_id: __quent_nvtx_stream_id"));
+        assert!(source.contains("generated NVTX live capture supports 64-bit Linux only"));
+
+        let binding_create = source
+            .find("let __quent_nvtx_binding")
+            .expect("generated binding event construction");
+        let install = source
+            .find("::nvtx_injection::register_source")
+            .expect("generated source registration");
+        let binding_send = source
+            .find("__quent_nvtx_process_sender.send(__quent_nvtx_binding)")
+            .expect("generated binding event send");
+        let gate_open = source[binding_send..]
+            .find(".take()")
+            .map(|offset| binding_send + offset)
+            .expect("generated capture gate opening");
+        assert!(
+            binding_create < install && install < binding_send && binding_send < gate_open,
+            "the installed hook must buffer until its binding is queued"
+        );
+
+        let hook_end = install
+            + source[install..]
+                .find(".map_err")
+                .expect("generated hook error mapping");
+        let hook = &source[install..hook_end];
+        assert!(hook.contains("__quent_nvtx_hook_sender"));
+        assert!(hook.contains("__quent_nvtx_hook_gate"));
+        assert!(hook.contains("__quent_nvtx_buffer.push(__quent_nvtx_event)"));
+        assert!(hook.contains(".send(__quent_nvtx_event)"));
+        assert!(!hook.contains("NvtxEventEvent::Initialized"));
+        assert!(!hook.contains("__quent_nvtx_inner"));
+        assert!(!hook.contains("context.observer"));
+        assert!(source.contains("HandleError::source_activation"));
+
+        // Collector/replay dispatch keeps using the raw forward path and does
+        // not call the handle-only activation path.
+        assert!(source.contains("context.observer::<ApplicationProcess>().forward(event)"));
+    }
+
+    #[test]
+    fn live_capture_option_requires_live_instrumentation() {
+        let error = generate_str(
+            &nvtx_schema(),
+            &Options {
+                instrumentation: false,
+                nvtx_capture: true,
+                ..Options::default()
+            },
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            error,
+            crate::GenerateError::NvtxCaptureRequiresInstrumentation
+        ));
+    }
+
+    #[test]
+    fn live_capture_option_is_inert_without_the_nvtx_schema() {
+        let schema = SchemaBuilder::try_new("Application")
+            .unwrap()
+            .with_entity(
+                EntityBuilder::new(path("Task"))
+                    .with_event(
+                        EventBuilder::new(ident("started"), Cardinality::Once)
+                            .build()
+                            .unwrap(),
+                    )
+                    .build()
+                    .unwrap(),
+            )
+            .build()
+            .unwrap();
+
+        let source = generate_str(
+            &schema,
+            &Options {
+                nvtx_capture: true,
+                ..Options::default()
+            },
+        )
+        .unwrap();
+
+        assert!(!source.contains("nvtx_injection"));
+        assert!(!source.contains("with_emit_activation"));
+    }
+
+    #[test]
+    fn live_capture_rejects_an_fsm_process_with_an_entity_specific_error() {
+        let process = FsmEntityBuilder::new(path("StatefulProcess"))
+            .with_states([
+                StateDecl {
+                    name: ident("started"),
+                    attributes: vec![field("process", DataType::Record(process_path()))],
+                    to: vec![ident("stopped")],
+                    initial: true,
+                },
+                StateDecl {
+                    name: ident("stopped"),
+                    attributes: vec![],
+                    to: vec![],
+                    initial: false,
+                },
+            ])
+            .build()
+            .unwrap();
+        let base = SchemaBuilder::try_new("Application")
+            .unwrap()
+            .with_record(process_record())
+            .with_entity(process)
+            .build()
+            .unwrap();
+        let schema = nvtx_schema::compose(&base, &path("StatefulProcess")).unwrap();
+
+        let error = generate_str(
+            &schema,
+            &Options {
+                nvtx_capture: true,
+                ..Options::default()
+            },
+        )
+        .unwrap_err();
+
+        assert!(matches!(
+            &error,
+            crate::GenerateError::NvtxCaptureFsmProcessUnsupported { entity }
+                if entity == &path("StatefulProcess")
+        ));
+        assert!(error.to_string().contains("ordinary entity handle"));
     }
 
     #[test]

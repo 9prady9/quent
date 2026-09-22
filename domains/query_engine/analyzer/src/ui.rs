@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 
 use quent_analyzer::{AnalyzerError, AnalyzerResult, context::ContextId};
 use quent_events::Event;
@@ -23,6 +24,45 @@ use uuid::Uuid;
 
 use crate::QueryEngineModel;
 
+/// Availability of one generated event stream in a loaded runtime context.
+///
+/// This mirrors the states retained by the common store without coupling
+/// analyzers to a particular storage implementation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ContextStreamAvailability {
+    /// The context's model does not declare this stream.
+    Undeclared,
+    /// The model declares the stream, but no stream directory is available.
+    Missing,
+    /// The stream is present and decoded successfully, but contains no events.
+    Empty,
+    /// The stream contains at least one decoded event.
+    Populated,
+}
+
+/// Storage metadata retained while a runtime context is analyzed.
+#[derive(Clone, Debug, Default)]
+pub struct ContextMetadata {
+    streams: Arc<HashMap<String, ContextStreamAvailability>>,
+}
+
+impl ContextMetadata {
+    /// Create metadata from the availability of the named generated streams.
+    pub fn new(streams: impl IntoIterator<Item = (String, ContextStreamAvailability)>) -> Self {
+        Self {
+            streams: Arc::new(streams.into_iter().collect()),
+        }
+    }
+
+    /// Look up availability recorded by the context importer.
+    ///
+    /// `None` means the importer did not provide availability metadata for the
+    /// stream. It does not imply that the stream is missing.
+    pub fn stream_availability(&self, entity: &str) -> Option<ContextStreamAvailability> {
+        self.streams.get(entity).copied()
+    }
+}
+
 /// One model event together with the runtime context that stored it.
 ///
 /// Entity IDs identify application objects, while a context identifies one
@@ -32,11 +72,29 @@ use crate::QueryEngineModel;
 pub struct ContextEvent<T> {
     context_id: ContextId,
     event: Event<T>,
+    metadata: ContextMetadata,
 }
 
 impl<T> ContextEvent<T> {
     pub fn new(context_id: ContextId, event: Event<T>) -> Self {
-        Self { context_id, event }
+        Self {
+            context_id,
+            event,
+            metadata: ContextMetadata::default(),
+        }
+    }
+
+    /// Attach metadata retained by the common context loader.
+    pub fn with_metadata(
+        context_id: ContextId,
+        event: Event<T>,
+        metadata: ContextMetadata,
+    ) -> Self {
+        Self {
+            context_id,
+            event,
+            metadata,
+        }
     }
 
     pub fn context_id(&self) -> ContextId {
@@ -45,6 +103,11 @@ impl<T> ContextEvent<T> {
 
     pub fn event(&self) -> &Event<T> {
         &self.event
+    }
+
+    /// Metadata shared by every event imported from this context.
+    pub fn metadata(&self) -> &ContextMetadata {
+        &self.metadata
     }
 
     pub fn into_event(self) -> Event<T> {

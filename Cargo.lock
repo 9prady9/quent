@@ -2148,6 +2148,7 @@ dependencies = [
  "nvtx-events",
  "nvtx-sys",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -2794,13 +2795,27 @@ name = "quent-instrumentation-build-example"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "nvtx",
  "nvtx-analyzer",
  "nvtx-events",
+ "nvtx-injection",
  "quent-instrumentation",
  "quent-instrumentation-build",
  "quent-yaml",
  "serde",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "quent-instrumentation-build-nvtx-multisink-test"
+version = "0.1.0"
+dependencies = [
+ "nvtx-analyzer",
+ "nvtx-events",
+ "quent-instrumentation",
+ "quent-instrumentation-build",
+ "quent-nvtx-multisink-test-backend",
+ "quent-yaml",
 ]
 
 [[package]]
@@ -2898,6 +2913,14 @@ dependencies = [
  "quent-events",
  "thiserror",
  "tracing",
+ "uuid",
+]
+
+[[package]]
+name = "quent-nvtx-multisink-test-backend"
+version = "0.1.0"
+dependencies = [
+ "nvtx-events",
  "uuid",
 ]
 
@@ -3077,6 +3100,7 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "libc",
+ "nvtx",
  "petgraph",
  "quent-dynamic-attributes",
  "quent-io",
@@ -3115,12 +3139,15 @@ dependencies = [
 name = "quent-simulator-fixed"
 version = "0.1.0"
 dependencies = [
+ "axum",
  "clap",
+ "quent-analyzer",
  "quent-dynamic-attributes",
  "quent-events",
  "quent-instrumentation",
  "quent-io",
  "quent-query-engine-analyzer",
+ "quent-query-engine-server",
  "quent-query-engine-ui",
  "quent-simulator",
  "quent-simulator-analyzer",
@@ -3130,6 +3157,8 @@ dependencies = [
  "quent-time",
  "quent-ui",
  "tempfile",
+ "tokio",
+ "tower",
  "uuid",
 ]
 
@@ -3139,6 +3168,7 @@ version = "0.1.0"
 dependencies = [
  "nvtx-analyzer",
  "nvtx-events",
+ "nvtx-injection",
  "quent-collector-client",
  "quent-events",
  "quent-instrumentation",

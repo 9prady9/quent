@@ -17,5 +17,8 @@ uuid.workspace = true
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
 libc = "0.2"
 
+[target.'cfg(all(target_os = "linux", target_pointer_width = "64"))'.dependencies]
+nvtx.workspace = true
+
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_System_Threading"] }

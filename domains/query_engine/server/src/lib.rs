@@ -93,6 +93,27 @@ where
     )
 }
 
+/// Build the complete HTTP router while retaining metadata from each common
+/// context load.
+///
+/// This is the context-aware counterpart to [`model_viewer_router`]. Existing
+/// viewer wrappers can keep using the event-only importer; applications whose
+/// auxiliary views distinguish missing and present-empty streams can opt into
+/// this path.
+pub fn model_viewer_router_with_contexts<V>(
+    importer: Box<analyzer_cache::ContextImporterFn<V::Analyzer>>,
+    lister: Box<analyzer_cache::ListerFn>,
+    cors: Option<String>,
+) -> Result<AxumRouter, Box<dyn std::error::Error>>
+where
+    V: QuentViewerServer,
+    V::Analyzer: Send + Sync + 'static,
+{
+    let analyzers = AnalyzerCache::<V::Analyzer>::new_with_contexts(importer, lister);
+    let integration_routes = V::additional_routes(analyzers.clone());
+    analyzer_service_router_from_cache(analyzers, cors, integration_routes)
+}
+
 /// Build the analyzer router and merge integration-owned routes before common
 /// CORS and embedded-UI fallback layers are installed.
 pub fn analyzer_service_router_with_routes<A>(
@@ -125,6 +146,17 @@ where
 {
     let analyzers = AnalyzerCache::<A>::new(importer, lister);
     let integration_routes = additional_routes(analyzers.clone());
+    analyzer_service_router_from_cache(analyzers, cors, integration_routes)
+}
+
+fn analyzer_service_router_from_cache<A>(
+    analyzers: AnalyzerCache<A>,
+    cors: Option<String>,
+    integration_routes: AxumRouter,
+) -> Result<AxumRouter, Box<dyn std::error::Error>>
+where
+    A: UiAnalyzer + Send + Sync + 'static,
+{
     let state = ServiceState {
         analyzers,
         timelines: TimelineCache::new(),

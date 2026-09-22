@@ -6,7 +6,7 @@ use std::{num::NonZeroUsize, sync::Arc, time::Duration};
 use quent_analyzer::context::{ContextId, ContextIndex};
 use quent_analyzer::service::{AnalysisCache, BlockingTasks};
 use quent_events::Event;
-use quent_query_engine_analyzer::ui::{ContextEvent, UiAnalyzer};
+use quent_query_engine_analyzer::ui::{ContextEvent, ContextMetadata, UiAnalyzer};
 use quent_query_engine_ui as ui;
 use tracing::info_span;
 use uuid::Uuid;
@@ -19,12 +19,33 @@ pub type ImporterFn<A> = dyn Fn(Uuid) -> ServerResult<Box<dyn Iterator<Item = Ev
     + Send
     + Sync;
 
+/// One context loaded with both its model events and stream availability.
+pub struct ImportedContext<T> {
+    events: Box<dyn Iterator<Item = Event<T>>>,
+    metadata: ContextMetadata,
+}
+
+impl<T> ImportedContext<T> {
+    /// Retain a context load for analyzer construction.
+    pub fn new(events: Box<dyn Iterator<Item = Event<T>>>, metadata: ContextMetadata) -> Self {
+        Self { events, metadata }
+    }
+}
+
+/// Reads one source context without discarding common loader metadata.
+pub type ContextImporterFn<A> =
+    dyn Fn(Uuid) -> ServerResult<ImportedContext<<A as UiAnalyzer>::Event>> + Send + Sync;
+
+type AnalyzerImporterFn<A> = dyn Fn(ContextId) -> ServerResult<Box<dyn Iterator<Item = ContextEvent<<A as UiAnalyzer>::Event>>>>
+    + Send
+    + Sync;
+
 /// Produces the [`ContextIndex`] used to locate the contexts backing each analysis target.
 pub type ListerFn = dyn Fn() -> ServerResult<ContextIndex> + Send + Sync;
 
 /// Chain one source-importer call per context into a single event stream.
 fn chain_context_events<A: UiAnalyzer>(
-    importer: &ImporterFn<A>,
+    importer: &AnalyzerImporterFn<A>,
     context_ids: &[ContextId],
 ) -> ServerResult<Box<dyn Iterator<Item = ContextEvent<A::Event>>>>
 where
@@ -33,10 +54,7 @@ where
     let mut streams: Vec<Box<dyn Iterator<Item = ContextEvent<A::Event>>>> =
         Vec::with_capacity(context_ids.len());
     for &context_id in context_ids {
-        streams.push(Box::new(
-            importer(context_id.into_uuid())?
-                .map(move |event| ContextEvent::new(context_id, event)),
-        ));
+        streams.push(importer(context_id)?);
     }
     Ok(Box::new(streams.into_iter().flatten()))
 }
@@ -47,7 +65,7 @@ where
     A: UiAnalyzer,
 {
     analyzers: AnalysisCache<Uuid, A, ServerError>,
-    importer: Arc<ImporterFn<A>>,
+    importer: Arc<AnalyzerImporterFn<A>>,
     lister: Arc<ListerFn>,
     tasks: BlockingTasks,
 }
@@ -71,10 +89,39 @@ where
     A: UiAnalyzer + Send + Sync + 'static,
 {
     pub(crate) fn new(importer: Box<ImporterFn<A>>, lister: Box<ListerFn>) -> Self {
+        let importer = move |context_id: ContextId| {
+            Ok(Box::new(
+                importer(context_id.into_uuid())?
+                    .map(move |event| ContextEvent::new(context_id, event)),
+            )
+                as Box<dyn Iterator<Item = ContextEvent<A::Event>>>)
+        };
+        Self::from_context_event_importer(Arc::new(importer), lister)
+    }
+
+    pub(crate) fn new_with_contexts(
+        importer: Box<ContextImporterFn<A>>,
+        lister: Box<ListerFn>,
+    ) -> Self {
+        let importer =
+            move |context_id: ContextId| {
+                let ImportedContext { events, metadata } = importer(context_id.into_uuid())?;
+                Ok(Box::new(events.map(move |event| {
+                    ContextEvent::with_metadata(context_id, event, metadata.clone())
+                }))
+                    as Box<dyn Iterator<Item = ContextEvent<A::Event>>>)
+            };
+        Self::from_context_event_importer(Arc::new(importer), lister)
+    }
+
+    fn from_context_event_importer(
+        importer: Arc<AnalyzerImporterFn<A>>,
+        lister: Box<ListerFn>,
+    ) -> Self {
         let tasks = BlockingTasks::new(NonZeroUsize::new(4).unwrap());
         Self {
             analyzers: AnalysisCache::new(32, Duration::from_hours(24), tasks.clone()),
-            importer: Arc::from(importer),
+            importer,
             lister: Arc::from(lister),
             tasks,
         }
