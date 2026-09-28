@@ -43,7 +43,7 @@ pub trait Model {
 /// Associates a model marker with its model-wide event type.
 pub trait ModelEvents {
     /// Model-wide event type to which entity events can be converted.
-    type UmbrellaEvent;
+    type CombinedEvent;
 }
 
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]

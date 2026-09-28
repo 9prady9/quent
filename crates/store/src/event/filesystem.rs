@@ -61,7 +61,7 @@ pub trait Model: ModelEvents {
 }
 
 type ImportFn<M> =
-    fn(Vec<EventFile>) -> Result<EventIterator<<M as ModelEvents>::UmbrellaEvent, Error>>;
+    fn(Vec<EventFile>) -> Result<EventIterator<<M as ModelEvents>::CombinedEvent, Error>>;
 
 /// Describes one entity-event stream in a generated analysis model.
 #[doc(hidden)]
@@ -85,15 +85,15 @@ pub struct EventFile {
     path: PathBuf,
 }
 
-/// Imports files containing entity events and converts them to the model umbrella type.
+/// Imports files containing entity events and converts them to the model combined type.
 #[doc(hidden)]
 pub fn import_event_files<M, E>(
     files: Vec<EventFile>,
-) -> Result<EventIterator<M::UmbrellaEvent, Error>>
+) -> Result<EventIterator<M::CombinedEvent, Error>>
 where
     M: ModelEvents,
-    E: DeserializeOwned + Into<M::UmbrellaEvent> + 'static,
-    M::UmbrellaEvent: 'static,
+    E: DeserializeOwned + Into<M::CombinedEvent> + 'static,
+    M::CombinedEvent: 'static,
 {
     Ok(Box::new(import_files::<E>(files).map(|event| {
         event.map(|event| Event::new(event.id, event.timestamp, event.data.into()))
@@ -153,7 +153,7 @@ where
     fn load_model_events(
         &self,
         context_id: Uuid,
-    ) -> Result<EventIterator<M::UmbrellaEvent, Error>> {
+    ) -> Result<EventIterator<M::CombinedEvent, Error>> {
         let context = self.context(context_id)?;
         let mut streams = Vec::new();
         for descriptor in M::event_streams() {

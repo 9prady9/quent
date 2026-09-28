@@ -55,12 +55,12 @@ pub struct Options {
     /// Additional derives applied to every generated record struct.
     pub record_derives: &'static [&'static str],
 
-    /// Generate a model-wide umbrella event.
-    pub umbrella_event: bool,
+    /// Generate a model-wide combined event.
+    pub combined_event: bool,
 
     /// Generate model-wide filesystem loading support.
     ///
-    /// [`Self::umbrella_event`] must also be enabled. The consuming crate must enable at least one
+    /// [`Self::combined_event`] must also be enabled. The consuming crate must enable at least one
     /// `quent-store` `io-*` feature.
     pub filesystem: bool,
 
@@ -77,7 +77,7 @@ impl Default for Options {
             debug: true,
             event_derives: Default::default(),
             record_derives: Default::default(),
-            umbrella_event: true,
+            combined_event: true,
             filesystem: true,
             out_dir: PathBuf::from(std::env::var("OUT_DIR").unwrap_or_default()),
             file_name: None,
@@ -88,8 +88,8 @@ impl Default for Options {
 /// An error from generating stored-event retrieval source.
 #[derive(Debug, thiserror::Error)]
 pub enum GenerateError {
-    #[error("filesystem loading requires umbrella-event generation")]
-    FilesystemRequiresUmbrellaEvent,
+    #[error("filesystem loading requires combined-event generation")]
+    FilesystemRequiresCombinedEvent,
     #[error(transparent)]
     EventModel(#[from] quent_instrumentation_build::GenerateError),
     #[error("generated stored-event retrieval code did not form a valid Rust file")]
@@ -130,8 +130,8 @@ pub fn generate(schema: &Schema, opts: &Options) -> Result<GenerateInfo, Generat
 /// Returns an error when the options are inconsistent, event generation fails, or the combined
 /// output is not valid Rust.
 pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateError> {
-    if opts.filesystem && !opts.umbrella_event {
-        return Err(GenerateError::FilesystemRequiresUmbrellaEvent);
+    if opts.filesystem && !opts.combined_event {
+        return Err(GenerateError::FilesystemRequiresCombinedEvent);
     }
 
     let event_opts = quent_instrumentation_build::Options {
@@ -140,7 +140,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
         serde: true,
         event_derives: opts.event_derives,
         record_derives: opts.record_derives,
-        umbrella_event: opts.umbrella_event,
+        combined_event: opts.combined_event,
         ..quent_instrumentation_build::Options::default()
     };
     let events = quent_instrumentation_build::generate_str(schema, &event_opts)?;
@@ -220,7 +220,7 @@ mod tests {
         let entity_events_source = generate_str(
             &schema,
             &Options {
-                umbrella_event: false,
+                combined_event: false,
                 filesystem: false,
                 ..Options::default()
             },
@@ -232,7 +232,7 @@ mod tests {
         let events_only_source = generate_str(
             &schema,
             &Options {
-                umbrella_event: true,
+                combined_event: true,
                 filesystem: false,
                 ..Options::default()
             },
@@ -245,12 +245,12 @@ mod tests {
             generate_str(
                 &schema,
                 &Options {
-                    umbrella_event: false,
+                    combined_event: false,
                     filesystem: true,
                     ..Options::default()
                 }
             ),
-            Err(GenerateError::FilesystemRequiresUmbrellaEvent)
+            Err(GenerateError::FilesystemRequiresCombinedEvent)
         ));
     }
 

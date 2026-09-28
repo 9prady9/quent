@@ -33,16 +33,16 @@ pub trait EntityEventStore<M> {
     }
 }
 
-/// Loads model-wide stored events as owned values with umbrella-event payloads.
+/// Loads model-wide stored events as owned values with combined-event payloads.
 ///
 /// Generated models support this trait only when
-/// `quent_store_build::Options::umbrella_event` is enabled.
+/// `quent_store_build::Options::combined_event` is enabled.
 pub trait ModelEventStore<M: ModelEvents>: EntityEventStore<M> {
     /// Loads every event stored for `context_id` without an ordering guarantee.
     fn events(
         &self,
         context_id: Uuid,
-    ) -> EventIteratorResult<M::UmbrellaEvent, <Self as EntityEventStore<M>>::Error>
+    ) -> EventIteratorResult<M::CombinedEvent, <Self as EntityEventStore<M>>::Error>
     where
         Self: ModelEventLoader<M, Error = <Self as EntityEventStore<M>>::Error>,
     {
@@ -60,7 +60,7 @@ pub trait EntityEventLoader<E: Entity> {
     fn load_entity_events(&self, context_id: Uuid) -> EventIteratorResult<E::Event, Self::Error>;
 }
 
-/// Loads umbrella events for a [`ModelEventStore`].
+/// Loads combined events for a [`ModelEventStore`].
 #[doc(hidden)]
 pub trait ModelEventLoader<M: ModelEvents> {
     /// Error returned when events cannot be loaded.
@@ -70,7 +70,7 @@ pub trait ModelEventLoader<M: ModelEvents> {
     fn load_model_events(
         &self,
         context_id: Uuid,
-    ) -> EventIteratorResult<M::UmbrellaEvent, Self::Error>;
+    ) -> EventIteratorResult<M::CombinedEvent, Self::Error>;
 }
 
 /// Marks an entity as belonging to analysis model `M`.

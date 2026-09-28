@@ -127,7 +127,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
     };
 
-    // Reconstruct one context's umbrella event stream from its per-entity
+    // Reconstruct one context's combined event stream from its per-entity
     // subdirectories; the analyzer cache chains this across all the contexts that
     // make up an engine instance.
     let importer = move |context_id| {
