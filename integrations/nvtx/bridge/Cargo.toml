@@ -9,7 +9,7 @@ publish.workspace = true
 
 [dependencies]
 # The bridge is a single adapter type. It needs the NVTX event vocabulary, the
-# Quent `EntityEvent` trait it implements, and serde for the transparent derive.
+# Quent `EventPayload` trait it implements, and serde for the transparent derive.
 nvtx-events = { path = "../events" }
 quent-events = { path = "../../../crates/events" }
 serde = { workspace = true }

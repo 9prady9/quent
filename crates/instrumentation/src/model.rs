@@ -48,7 +48,7 @@ pub struct Context<M: InstrumentedModel> {
     inner: ContextInner,
 }
 
-impl<M: quent_events::Model + InstrumentedModel> Context<M> {
+impl<M: quent_events::EventModel + InstrumentedModel> Context<M> {
     /// Creates a context and builds every entity's exporter pipeline.
     pub fn try_new<P>(provider: P) -> Result<Self, Box<dyn std::error::Error>>
     where

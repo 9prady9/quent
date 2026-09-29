@@ -40,7 +40,9 @@ pub use quent_dynamic_attributes::{
 };
 #[doc(hidden)]
 pub use quent_events as events;
-pub use quent_events::{AnyEntity, EntityEvent, EntityRef, Event, Model, ModelEvents};
+pub use quent_events::{
+    AnyEntity, CombinedEventModel, EntityMarker, EntityRef, Event, EventModel, EventPayload,
+};
 pub use quent_io::{ExporterOptions, ExporterProvider};
 #[cfg(any(feature = "io-ndjson", feature = "io-msgpack", feature = "io-postcard"))]
 pub use quent_io::{FileSystemExporterOptions, FileSystemFormat};
@@ -54,7 +56,7 @@ pub use quent_io_callback::EventCallback;
 mod tests {
     use super::*;
     use quent_build_info::ModelSource;
-    use quent_events::{EntityEvent, Event};
+    use quent_events::{Event, EventPayload};
     use quent_io::{ExporterOptions, FileSystemExporterOptions, FileSystemFormat};
     use uuid::Uuid;
 
@@ -72,11 +74,11 @@ mod tests {
     #[derive(Debug, serde::Serialize)]
     struct TestEvent;
 
-    impl EntityEvent for TestEvent {
+    impl EventPayload for TestEvent {
         const NAME: &'static str = "TestEvent";
     }
 
-    impl Model for TestModel {
+    impl EventModel for TestModel {
         const NAME: &'static str = "Test";
     }
 

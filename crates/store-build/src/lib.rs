@@ -153,7 +153,7 @@ pub fn generate_str(schema: &Schema, opts: &Options) -> Result<String, GenerateE
             let event = quent_instrumentation_build::generated_entity_event_path(entity);
             quote! {
                 ::quent_store::event::filesystem::EventStream::new(
-                    <#event as ::quent_events::EntityEvent>::NAME,
+                    <#event as ::quent_events::EventPayload>::NAME,
                     ::quent_store::event::filesystem::import_event_files::<#model, #event>,
                 )
             }

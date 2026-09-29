@@ -217,7 +217,7 @@ mod tests {
             #generated_model
             #model
         });
-        assert!(src.contains("type Event = ConnectionEvent"));
+        assert!(src.contains("type Payload = ConnectionEvent"));
         assert!(src.contains("impl Handle<Connection>"));
         assert!(src.contains("pub struct Demo"));
         assert!(src.contains("impl<P> ::quent_instrumentation::ObserverBuilder<P> for Demo"));

@@ -31,7 +31,7 @@ the NVTX Rust API, and links a small shim so NVTX initializes capture
 |-------|------|------|
 | `nvtx-events` | `events/` | The application-agnostic NVTX event **vocabulary** (`NvtxEvent` + attribute/payload types). Pure Rust, upstreamable to the NVTX Rust crates. |
 | `nvtx-injection` | `injection/` | The **NVTX C ABI layer**. Fills NVTX's callback tables, converts each call into a verbatim `NvtxEvent`, and hands it to a sink-agnostic `Fn(NvtxEvent)` hook. Attach in-process via the `static-injection` feature, or at runtime as a cdylib via `NVTX_INJECTION64_PATH`. |
-| `nvtx-bridge` | `bridge/` | The **bridge**: `NvtxEventEntity`, a newtype over `NvtxEvent` implementing Quent's `EntityEvent`. The orphan rule forces the impl here; the only crate depending on Quent internals. |
+| `nvtx-bridge` | `bridge/` | The **bridge**: `NvtxEventEntity`, a newtype over `NvtxEvent` implementing Quent's `EventPayload`. The orphan rule forces the impl here; the only crate depending on Quent internals. |
 | `nvtx-example` | `example/` | A runnable, self-verifying example. |
 
 ## How capture works

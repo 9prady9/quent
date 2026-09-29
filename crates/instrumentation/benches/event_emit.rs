@@ -25,7 +25,7 @@ use criterion::{BenchmarkGroup, Criterion, Throughput, measurement::WallTime, pr
 use pprof::ProfilerGuard;
 use quent_collector::{CollectorSink, deserialize_event, server::CollectorService};
 use quent_collector_proto::collector_server::CollectorServer;
-use quent_events::EntityEvent;
+use quent_events::EventPayload;
 use quent_instrumentation::{ContextInner, ObserverInner};
 use quent_io::filesystem::{self, Format};
 use quent_io::{CollectorExporterOptions, ExporterOptions};
@@ -75,7 +75,7 @@ impl Profiler for FlamegraphProfiler {
 #[derive(Serialize, Deserialize)]
 struct BenchEvent;
 
-impl EntityEvent for BenchEvent {
+impl EventPayload for BenchEvent {
     const NAME: &'static str = "BenchEvent";
 }
 

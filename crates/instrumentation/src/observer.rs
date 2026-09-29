@@ -4,7 +4,7 @@
 //! Shared event forwarding state for entity observers.
 
 use crate::context::{Runtime, drive};
-use quent_events::{EntityEvent, Event};
+use quent_events::{Event, EventPayload};
 use quent_io::Exporter;
 use std::sync::{
     Arc,
@@ -150,7 +150,7 @@ pub(crate) fn spawn_forwarder<T>(
     mut exporter: Box<dyn Exporter<T>>,
 ) -> ObserverInner<T>
 where
-    T: Send + EntityEvent + 'static,
+    T: Send + EventPayload + 'static,
 {
     let cancellation_token = CancellationToken::new();
     let cloned_token = cancellation_token.clone();
@@ -216,7 +216,7 @@ mod tests {
     use super::*;
 
     struct TestEvent;
-    impl EntityEvent for TestEvent {
+    impl EventPayload for TestEvent {
         const NAME: &'static str = "TestEvent";
     }
 

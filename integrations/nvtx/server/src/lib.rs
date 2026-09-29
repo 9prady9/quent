@@ -18,7 +18,7 @@ use moka::{future::Cache as AsyncCache, sync::Cache as SyncCache};
 use nvtx_analyzer::{NvtxModel, NvtxModelBuilder};
 use nvtx_bridge::NvtxEventEntity;
 use nvtx_ui::{NvtxCatalog, NvtxViewportRequest, NvtxViewportResponse};
-use quent_events::{EntityEvent, Event};
+use quent_events::{Event, EventPayload};
 use quent_io::filesystem::{self, Format};
 use quent_io::{ImporterOptions, ImporterProvider};
 use tokio::sync::Semaphore;
@@ -62,7 +62,7 @@ pub fn import_context_events(
     context_id: Uuid,
 ) -> NvtxImporterResult<Option<Vec<Event<NvtxEventEntity>>>> {
     let context_dir = root.join(context_id.to_string());
-    let stream_dir = context_dir.join(<NvtxEventEntity as EntityEvent>::NAME);
+    let stream_dir = context_dir.join(<NvtxEventEntity as EventPayload>::NAME);
     if !stream_dir.is_dir() {
         return Ok(None);
     }
@@ -641,7 +641,7 @@ mod tests {
         std::fs::create_dir_all(
             root.path()
                 .join(context_id.to_string())
-                .join(<NvtxEventEntity as EntityEvent>::NAME),
+                .join(<NvtxEventEntity as EventPayload>::NAME),
         )
         .unwrap();
 

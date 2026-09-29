@@ -388,7 +388,7 @@ mod path_tests {
 
         let source = generate_str(&schema, &opts).unwrap();
 
-        assert!(source.contains("impl ::quent_events::ModelEvents for Demo"));
+        assert!(source.contains("impl ::quent_events::CombinedEventModel for Demo"));
         assert!(source.contains("pub enum DemoEvent"));
         assert!(!source.contains("quent_instrumentation"));
         assert!(!source.contains("pub struct Handle"));
@@ -507,7 +507,7 @@ mod path_tests {
         );
         assert!(source.contains("impl super::Handle<Query>"));
         assert!(source.contains("impl ::quent_instrumentation::InstrumentedEntity for Query"));
-        assert!(source.contains("impl ::quent_instrumentation::events::Entity for Query"));
+        assert!(source.contains("impl ::quent_instrumentation::events::EntityMarker for Query"));
         assert!(source.contains("type Context = super::Context<super::Demo>"));
         assert!(source.contains("pub struct DemoObservers"));
         assert!(source.contains("struct FooObservers"));

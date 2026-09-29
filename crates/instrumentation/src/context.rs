@@ -4,7 +4,7 @@
 //! The runtime host that observers of a model instance run on.
 
 use crate::observer::{ObserverInner, spawn_forwarder};
-use quent_events::EntityEvent;
+use quent_events::EventPayload;
 use quent_io::ExporterProvider;
 use std::future::Future;
 use std::sync::Arc;
@@ -142,7 +142,7 @@ impl ContextInner {
         provider: &impl ExporterProvider<T>,
     ) -> Result<ObserverInner<T>, Box<dyn std::error::Error>>
     where
-        T: Send + EntityEvent + 'static,
+        T: Send + EventPayload + 'static,
     {
         let Some(runtime) = self.runtime() else {
             return Ok(ObserverInner::noop());

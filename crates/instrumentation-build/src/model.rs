@@ -124,7 +124,7 @@ fn generate_combined(
         let model = raw_ident(to_case(schema.name(), Case::Pascal));
         let runtime = opts.event_runtime();
         quote! {
-            impl #runtime::ModelEvents for #model {
+            impl #runtime::CombinedEventModel for #model {
                 type CombinedEvent = #event;
             }
         }
@@ -186,7 +186,7 @@ fn generate_model(schema: &Schema, namespace: &Namespace<'_>, opts: &Options) ->
             #analyzer_package
         }
 
-        impl #runtime::Model for #model {
+        impl #runtime::EventModel for #model {
             const NAME: &'static str = #model_name;
         }
     }
@@ -273,9 +273,9 @@ mod tests {
         let root = pretty(generate(&schema, &namespaces, &Options::default()).unwrap());
 
         assert!(root.contains("pub struct Demo"));
-        assert!(root.contains("impl ::quent_instrumentation::Model for Demo"));
+        assert!(root.contains("impl ::quent_instrumentation::EventModel for Demo"));
         assert!(!root.contains("DemoEvent"));
-        assert!(!root.contains("impl ::quent_instrumentation::ModelEvents for Demo"));
+        assert!(!root.contains("impl ::quent_instrumentation::CombinedEventModel for Demo"));
     }
 
     #[test]
