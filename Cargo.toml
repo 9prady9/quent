@@ -6,6 +6,7 @@ members = [
     "crates/dynamic-attributes",
     "crates/build-info",
     "crates/collector/server",
+    "crates/collector/python",
     "crates/collector/client",
     "crates/collector/proto",
     "crates/events",
@@ -125,7 +126,9 @@ prettyplease = "0.3.0"
 prost = "0.14.1"
 protox = "0.9.1"
 pyo3 = "0.29"
+quent-collector = { path = "crates/collector/server" }
 quent-collector-client = { path = "crates/collector/client" }
+quent-collector-proto = { path = "crates/collector/proto" }
 quent-constraints = { path = "crates/constraints" }
 quent-dynamic-attributes = { path = "crates/dynamic-attributes" }
 quent-events = { path = "crates/events" }
