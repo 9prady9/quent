@@ -14,7 +14,8 @@
   },
   "scripts": {
     "preinstall": "npx only-allow pnpm",
-    "bindings": "cargo run --manifest-path ../Cargo.toml --package quent-query-engine-ui-bindings",
+    "bindings": "cargo run --manifest-path ../Cargo.toml --package quent-query-engine-ui-bindings && pnpm bindings:format",
+    "bindings:format": "prettier --config .prettierrc --write \"generated/ts-bindings/**/*.ts\"",
     "predev": "pnpm bindings",
     "dev": "vite",
     "prestart": "pnpm bindings",
