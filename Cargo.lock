@@ -2536,6 +2536,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "quanta"
+version = "0.12.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3ab5a9d756f0d97bdc89019bd2e4ea098cf9cde50ee7564dde6b81ccc8f06c7"
+dependencies = [
+ "crossbeam-utils",
+ "libc",
+ "once_cell",
+ "raw-cpuid",
+ "wasi",
+ "web-sys",
+ "winapi",
+]
+
+[[package]]
 name = "quent-analyzer"
 version = "0.1.0"
 dependencies = [
@@ -2723,6 +2738,7 @@ dependencies = [
  "quent-events",
  "quent-io",
  "quent-io-callback",
+ "quent-time",
  "serde",
  "tempfile",
  "thiserror",
@@ -3212,6 +3228,7 @@ dependencies = [
 name = "quent-time"
 version = "0.1.0"
 dependencies = [
+ "quanta",
  "serde",
  "thiserror",
  "ts-rs",
@@ -3380,6 +3397,15 @@ name = "rand_core"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
+
+[[package]]
+name = "raw-cpuid"
+version = "11.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "498cd0dc59d73224351ee52a95fee0f1a617a2eae0e7d9d720cc622c73a54186"
+dependencies = [
+ "bitflags",
+]
 
 [[package]]
 name = "rawpointer"
