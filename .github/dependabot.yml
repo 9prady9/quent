@@ -26,9 +26,26 @@ updates:
     directories:
       - "/ui"
       - "/crates/schema/ts"
-      - "/experimental/vibe/ui"
     groups:
       npm:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    open-pull-requests-limit: 5
+    package-ecosystem: "npm"
+    schedule:
+      interval: "weekly"
+  - commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    cooldown:
+      default-days: 14
+    directory: "/experimental/vibe/ui"
+    groups:
+      npm-experimental:
         applies-to: version-updates
         patterns:
           - "*"
