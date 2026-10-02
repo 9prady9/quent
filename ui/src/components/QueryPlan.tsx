@@ -171,7 +171,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   // handle loading and error states
   if (queryBundleLoading) {
     return (
-      <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
+      <div className="w-full flex flex-col h-full">
         <div className="flex justify-center items-center h-full text-muted-foreground">
           Loading query plan...
         </div>
@@ -187,7 +187,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
 
   if (errorMessage) {
     return (
-      <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
+      <div className="w-full flex flex-col h-full">
         <div className="flex justify-center items-center h-full text-destructive">
           {errorMessage}
         </div>
@@ -277,7 +277,7 @@ export function QueryPlan({ queryId, engineId }: { queryId: string; engineId: st
   };
 
   return (
-    <div className="w-full flex flex-col h-[calc(100vh-4rem)]">
+    <div className="w-full flex flex-col h-full">
       {/* my-2px lines it up with timeline rows */}
       <section className="my-[2px] flex min-w-0 shrink-0 items-center gap-1.5 overflow-hidden border-b px-1.5 py-2.5">
         <TreeSelect<QueryPlanDataItem>

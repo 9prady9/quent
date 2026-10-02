@@ -20,7 +20,6 @@ import {
   NavigationMenuLink,
 } from '@quent/components';
 import { cn } from '@quent/utils';
-import { DeepLinkNavSlot } from '@/features/deep-link';
 
 function AppNav({ highlightProfile }: { highlightProfile?: boolean }) {
   const logoUrl = `${import.meta.env.BASE_URL}logo.svg`;
@@ -63,7 +62,6 @@ function AppNav({ highlightProfile }: { highlightProfile?: boolean }) {
                   </Button>
                 </NavigationMenuLink>
               </NavigationMenuItem>
-              <DeepLinkNavSlot />
             </NavigationMenuList>
           </NavigationMenu>
           <ThemeToggle />
