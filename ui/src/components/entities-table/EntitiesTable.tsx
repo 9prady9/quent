@@ -1,11 +1,9 @@
 // SPDX-FileCopyrightText: Copyright (c) 2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
-import { useMemo } from 'react';
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from '@quent/components';
 import type { EntityRef, QueryBundle } from '@quent/utils';
-import { createFsmTypeColorFn } from '@quent/utils';
-import { useTheme, THEME_DARK, THEME_LIGHT } from '@/contexts/ThemeContext';
+import { COLOR_REGISTRY_KEYS, useColorResolver } from '@quent/hooks';
 import { EntityDetailPanel } from './EntityDetailPanel';
 import { EntityResults } from './EntityResults';
 import { EntitiesToolbar } from './EntitiesToolbar';
@@ -19,12 +17,8 @@ interface EntitiesTableProps {
 
 export function EntitiesTable(props: EntitiesTableProps) {
   const table = useEntityTable(props);
-  const { theme } = useTheme();
-  const isDark = theme === THEME_DARK;
-  const stateColorFn = useMemo(
-    () => createFsmTypeColorFn(table.query.fsmTypes, isDark ? THEME_DARK : THEME_LIGHT),
-    [table.query.fsmTypes, isDark]
-  );
+  const stateColorFn = useColorResolver(COLOR_REGISTRY_KEYS.FSM_STATES);
+
   return (
     <ResizablePanelGroup orientation="horizontal">
       <ResizablePanel defaultSize="65%" minSize="40%">
@@ -81,7 +75,6 @@ export function EntitiesTable(props: EntitiesTableProps) {
           fsm={table.selection.selected}
           resourceLabel={table.resourceLabel}
           operatorLabel={table.operatorLabel}
-          stateColorFn={stateColorFn}
           queryBundle={props.queryBundle}
         />
       </ResizablePanel>

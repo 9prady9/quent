@@ -16,13 +16,11 @@ import { thinScrollbarClass } from '../ui/thin-scroll';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 
 export const DAGNodeInfoPanel = ({
-  isDark = false,
   quantitySpecs,
   fillHeight = false,
   onExpandedChange,
   onPreferredHeightChange,
 }: {
-  isDark?: boolean;
   quantitySpecs?: { [key: string]: QuantitySpec | undefined };
   fillHeight?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -127,7 +125,6 @@ export const DAGNodeInfoPanel = ({
               operator={operator}
               meta={dataFlowMeta}
               frame={dataFlowFrame}
-              isDark={isDark}
               isOpen={isOperatorOpen}
               onOpenChange={setOperatorOpen}
             />
