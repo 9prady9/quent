@@ -12,8 +12,7 @@ export interface ResolvedHoveredStatValue {
    * when it was derived from related operators (e.g. a logical-plan node).
    * Aggregated values live on a different scale than raw item values (a sum
    * across several operators routinely exceeds any single item's max), so
-   * callers must not compare them against `hoveredStat.min`/`max` directly —
-   * see `dagHeatmapRangeAtom`.
+   * callers must derive a range from every resolved value they display.
    */
   source: 'direct' | 'aggregated';
 }
