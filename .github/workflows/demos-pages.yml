@@ -45,6 +45,12 @@ jobs:
         run: pixi run --frozen pnpm --dir experimental/vibe/ui build
         env:
           SCHEMA_EXPLORER_BASE: /quent/schema/
+      - name: Install schema explorer test browser
+        run: pixi run --frozen pnpm --dir experimental/vibe/ui --filter @quent-experimental/schema-explorer exec playwright install --with-deps chromium
+      - name: Test schema explorer production build
+        run: pixi run --frozen pnpm --dir experimental/vibe/ui --filter @quent-experimental/schema-explorer test:e2e
+        env:
+          SCHEMA_EXPLORER_BASE: /quent/schema/
       - name: Install simulator UI dependencies
         run: pixi run --frozen pnpm --dir ui install --frozen-lockfile
       - name: Build simulator
