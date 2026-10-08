@@ -3,9 +3,11 @@
 
 //! Backing structures for generated instrumentation libraries.
 //!
-//! Instrumented application code should not import this crate directly unless
-//! there is a very special reason. Instead, it should interact with the
-//! generated instrumentation library only.
+//! Applications use generated libraries for model-specific instrumentation and
+//! can use this crate directly for shared types, traits, and exporter
+//! configuration.
+
+#![doc = include_str!("../PERFORMANCE.md")]
 
 #[cfg(feature = "io-collector")]
 #[doc(hidden)]

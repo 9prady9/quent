@@ -77,6 +77,7 @@ pub struct RuntimeOptions {
 /// Observers and handles keep the runtime alive after the context is dropped.
 /// Dropping the last owner of an observer, including its handles, waits for
 /// queued events to be exported and its exporter to flush.
+/// Channel-specific shutdown guarantees are documented in `PERFORMANCE.md`.
 pub struct Context<M: InstrumentedModel> {
     observers: M::Observers,
     inner: ContextInner,
