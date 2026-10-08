@@ -26,7 +26,7 @@ pub use context::ContextInner;
 pub use entity::{InstrumentedEntity, Observer};
 pub use fsm_handle::{FsmEvent, FsmHandleInner, FsmState, FsmStateMismatch, FsmTransitionError};
 pub use handle::{HandleError, HandleInner};
-pub use model::{Context, InstrumentedModel, ObserverBuilder, ObserverProvider};
+pub use model::{Context, InstrumentedModel, ObserverBuilder, ObserverProvider, RuntimeOptions};
 pub use noop::Noop;
 pub use observer::{EventSender, ObserverInner};
 pub use sidecar::{ContextExporter, write_sidecar};
